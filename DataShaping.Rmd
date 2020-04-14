@@ -1,0 +1,121 @@
+---
+title: "Time Social Distancing: Shaping data"
+output: html_notebook
+---
+
+
+This document explains how to extract meaningful data from the tables exported by Gorilla.
+
+First load useful packages and set root directory  (you may have to `install.packages`).
+```{r, message=F}
+
+library(tidyverse)
+library(plyr)
+library(tools)
+
+rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+
+tmpdir <- file.path(rootdir,'.tmp')
+
+```
+
+# Retrieve data from zip file
+
+If you download experiment data from Gorilla, you probably want to get it in zip format, and extract it with this code chunk.
+
+```{r, warning=F}
+
+datafile <- file.path(rootdir,'data_exp_15575-v41.zip')
+# datafile <- file.path(rootdir,'VVW_data_exp_15096-v35.zip')
+# datafile = file.path(rootdir,'drive-download-20200426T134951Z-001.zip')
+
+datadir <- sub('.zip','',datafile)
+
+suppressWarnings(dir.create(datadir))
+
+dum <- file.remove(list.files(tmpdir,full.names = T))
+
+unzip(datafile,exdir=tmpdir)
+
+fs <- list.files(tmpdir,full.names = T)
+
+for (f in fs) {
+  d <- switch(file_ext(f),
+         csv = read_csv(f,col_types = cols()),
+         xlsx = readxl::read_excel(f)) %>%
+    filter(!is.na(`Task Name`))
+  
+  if (nrow(d) == 0) {
+    print(paste('No data for', basename(f)))
+    file.remove(f)
+    next
+  }
+  
+  fn <- unique(d$`Task Name`) %>%
+    gsub(' ','_',.,)
+  
+  write_csv(d, path = file.path(datadir, paste0(fn,'.csv')))
+  
+  file.remove(f)
+}
+
+```
+# Tasks
+
+## Implicit Timing DE
+
+```{r, message=F}
+
+datafile <- file.path(datadir,'ImplicitTiming-DE.csv')
+
+orig <- read_csv(datafile)
+
+data_in_shape <- orig %>%
+  select(`Zone Type`, display,`Participant Private ID`,`Schedule ID`, `Local Date`,
+         `Trial Number`,`Reaction Time`,SOA,condition) %>%
+  filter(display == 'trial',`Zone Type` == 'response_keyboard_single') %>%
+  select(-`Zone Type`,-display) %>%
+  mutate(SOA = as.numeric(SOA),
+         condition = factor(condition,levels=c(0,1),labels=c('nonPred','Pred')),
+         RTE = filter(orig,display == 'fin',`Zone Type` == 'response_text_entry')$Response)
+
+
+ggplot(data_in_shape, aes(x=SOA,y=`Reaction Time`,col=condition,group=interaction(condition,SOA))) +
+  geom_boxplot()
+
+
+```
+
+
+# Questionnaires
+
+## BFI 10
+
+```{r, message=F}
+
+datafile <- file.path(datadir,'09_BFI-10-DE.csv')
+
+orig <- read_csv(datafile)
+
+data_in_shape <- orig %>%
+  select(`Participant Private ID`,`Schedule ID`, `Local Date`,
+         `Question Key`, Response) %>%
+  filter(grepl('-quantised',x=`Question Key`)) %>%
+  mutate(`Question Key` = str_replace(`Question Key`,"BFI-10_([0-9]+)-quantised",'Q\\1'),
+         Response = as.numeric(Response)) %>%
+  pivot_wider(names_from = `Question Key`,values_from = Response) %>%
+  mutate(Extraversion      = ((6 - Q1) + Q6) /2,
+         Agreableness      = ((6 - Q7) + Q2) /2,
+         Conscientiousness = ((6 - Q3) + Q8) /2,
+         Neuroticism       = ((6 - Q4) + Q9) /2,
+         Openness          = ((6 - Q5) + Q10) /2) %>%
+  select(-starts_with('Q'))
+
+toplot <- data_in_shape %>%
+  pivot_longer(cols=c(Extraversion,Agreableness,Conscientiousness,Neuroticism,Openness),names_to = 'BigFive',values_to = 'Value')
+
+  ggplot(toplot, aes(x=BigFive,y=Value,col=BigFive)) +
+  geom_point()
+  
+```
+
