@@ -2,4 +2,4 @@
 .Rhistory
 .RData
 .Ruserdata
-/MOCK_DATA/*/*.csv
+/example_DATA/*/*.csv
