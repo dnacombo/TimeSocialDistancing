@@ -87,6 +87,47 @@ ggplot(data_in_shape, aes(x=SOA,y=`Reaction Time`,col=condition,group=interactio
 
 ```
 
+```{r}
+datafile <- file.path(datadir,'1back-EN-DE.csv')
+
+orig <- read_csv(datafile)
+
+processed <- orig %>%
+  select(`Zone Type`, display,`Participant Private ID`,`Schedule ID`, `Local Date`,
+         `Trial Number`,`Reaction Time`, Attempt,Correct, letters, ILI
+  ) %>%
+  filter(display == 'block1back',`Zone Type` == 'response_keyboard') %>%
+  select(-`Zone Type`,-display) %>%
+  mutate(letters = gsub('<.*?>','',letters),
+         back_1 = tolower(letters) == lag(tolower(letters),default='firstTrial'))
+
+processed2 <- orig %>%
+  select(`Zone Type`, display,`Participant Private ID`,`Schedule ID`, `Local Date`,
+         `Trial Number`,`Reaction Time`, Attempt,Correct, letters, Response
+  ) %>%
+  filter(display == 'block1back_end',`Zone Type` == 'response_text_entry') %>%
+  select(-`Zone Type`,-display) %>%
+  separate(Response,c('m','s')) %>% mutate_at(.vars=c('m','s'),.funs = function(x){ifelse(is.na(x),0,x)}) %>%
+  mutate(Duration = sum(as.numeric(s) + 60 * as.numeric(m))) %>%
+  select(-m,-s)
+
+processed3 <- orig %>%
+  select(`Zone Type`, display,`Participant Private ID`,`Schedule ID`, `Local Date`,
+         `Trial Number`,`Reaction Time`, Attempt,Correct, letters, Response
+  ) %>%
+  filter(display == 'block1back_end',`Zone Type` == 'response_rating_scale_likert') %>%
+  select(-`Zone Type`,-display) %>%
+  mutate(DurationLikertRating = Response)
+  
+processed <- left_join(processed,processed2) %>%
+  left_join(processed3)
+
+rm(processed2,processed3)
+  
+ggplot(processed,aes(x=back_1,y=`Reaction Time`)) +
+  geom_jitter()
+
+```
 
 # Questionnaires
 
