@@ -1,6 +1,7 @@
 ---
 title: "Time Social Distancing: Shaping data"
 output: html_notebook
+    
 ---
 
 
@@ -13,7 +14,7 @@ library(tidyverse)
 library(plyr)
 library(tools)
 
-rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/MOCK_DATA'
 
 tmpdir <- file.path(rootdir,'.tmp')
 
@@ -117,5 +118,57 @@ toplot <- data_in_shape %>%
   ggplot(toplot, aes(x=BigFive,y=Value,col=BigFive)) +
   geom_point()
   
+```
+
+## FMI – Freiburg Mindfulness Questionnaire (German: FFA)
+Rarely = 1
+Occasionally = 2
+Fairly often = 3
+Almost always = 4
+
+Sum score of 14 items
+Only item 13 = reversed-scored
+
+
+```{r, message=F}
+datafile <- file.path(datadir,'13_FFA-EN-DE.csv')
+
+orig <- read_csv(datafile)
+
+data_in_shape <- orig %>%
+  select(`Participant Private ID`,`Schedule ID`, `Local Date`,
+         `Question Key`, Response) %>%
+  filter(grepl('-quantised',x=`Question Key`)) %>%
+  mutate(`Question Key` = str_replace(`Question Key`,"FFA_([0-9]+)-quantised",'Q\\1'),
+         Response = as.numeric(Response)) %>%
+  pivot_wider(names_from = `Question Key`,values_from = Response) %>%
+  mutate(FMI      = Q1+Q2+Q3+Q4+Q5+Q6+Q7+Q8+Q9+Q10+Q11+Q12+(5-Q13)+Q14
+         ) %>%
+  select(-starts_with('Q'))
+
+(toplot <- data_in_shape %>%
+  pivot_longer(cols=c(FMI),names_to = 'Score',values_to = 'Value'))
+
+
+  
+```
+
+
+## CFC-14 – Consideration of Future Consequences -14
+1 = very uncharacteristic of me
+2 = characteristic of me
+3 = (not labelled)
+4 = neither nor
+5 = (not labelled)
+6 = characteristic of me
+7 = very characteristic of me
+
+CFC-F (Future): = Summe (items 1, 2, 6, 7, 8, 13, 14)
+CFC-I (Immediate) = Summe (items 3, 4, 5, 9, 10, 11, 12)
+CFC_sumscore = CFC-F + (56-CFC-I) 
+
+```{r}
+
+
 ```
 
