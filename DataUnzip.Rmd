@@ -1,0 +1,116 @@
+---
+title: "Time Social Distancing: Unzipping data"
+output: html_notebook
+    
+---
+
+This document shows how to extract meaningful data from the tables exported by Gorilla with their original file name `data_exp_#####-v#.zip`.
+
+First load useful packages and set root directory  (you may have to `install.packages`).
+```{r, message=F}
+
+library(tidyverse)
+library(plyr)
+library(tools)
+
+# These path and file name need to be changed
+rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+datafile <- file.path(rootdir,'data_exp_16303-v2.zip')
+
+tmpdir <- file.path(rootdir,'.tmp')
+
+```
+
+## Unzip data
+
+This is the critical place, where the zip file name should be entered.
+```{r}
+experimentID <- gsub('.*data_exp_([[:digit:]]+)-v[[:digit:]]+.zip','\\1',datafile)
+
+datadir <- sub('-v[[:digit:]]+.zip','',datafile)
+
+unlink(datadir,recursive=T)
+
+unlink(tmpdir,recursive=T)
+
+unzip(datafile,exdir=tmpdir)
+```
+
+## Rename files
+
+We retrieve unique task identifiers: column "questionnaire or task name" from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0), based on expermient ID (i.e. language) retrieved from [this google sheet]('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0').
+
+```{r}
+library(gsheet)
+allnodes <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
+  dplyr::rename(order = 1,
+                UniqueName = 3) %>%
+  filter(order != 'Comment')
+
+experimentIDs <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0')
+
+nodekey <- filter(experimentIDs,`Experiment ID` == experimentID)$NodeKey
+```
+
+Now that we have these, we know that the current data comes from experiment ``r experimentID`` named ``r nodekey`` in [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0). We can rename all files using these `UniqueName` values stored in the `allnodes` variable.
+
+Here we turn the file names with node codes to `chk-Checkpoint_tsk-TaskName_v-N.csv`, where `Checkpoint` is the last checkpoint passed at the time this task/questionnaire named `TaskName` was passed. Experiment version `N` is also added to the file name.
+
+```{r,warning=F}
+fs <- list.files(tmpdir,full.names = T,recursive = T)
+dir.create(datadir)
+
+for (f in fs) {
+  d <- switch(file_ext(f),
+         csv = read_csv(f,col_types = cols()),
+         xlsx = readxl::read_excel(f)) %>%
+    filter(!is.na(`Task Name`))
+  # print(f)
+  
+  if (nrow(d) == 0) {
+    print(paste('No data for', basename(f)))
+    file.remove(f)
+    next
+  }
+  
+  CurrNode <- filter(allnodes,get(nodekey) == gsub('.*-([[:alnum:]]{4})','\\1',unique(d$`Tree Node Key`)))
+  
+  if (nrow(CurrNode) == 0 ){
+    print(paste('Could not locate task for',basename(f), ':', unique(d$`Task Name`)))
+    file.remove(f)
+    next
+  }
+
+  prevChk <- filter(allnodes,prefix == 'checkpoint',order < CurrNode$order) %>%
+    slice(n())
+  
+  write_csv(d, path = file.path(datadir, paste0('chk-', prevChk$UniqueName, '_tsk-', CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv')))
+  
+  file.remove(f)
+}
+
+```
+
+## Merge experiment versions
+
+```{r,message=F}
+fs <- list.files(datadir,pattern='chk-(.*)_tsk-(.*)_v-(.*).csv',full.names = T) %>%
+  tibble(fname=.) %>%
+  extract(fname,into=c('Checkpoint','Task Name','Experiment Version'),'chk-(.*)_tsk-(.*)_v-(.*).csv',remove = F) %>%
+  group_by(Checkpoint,`Task Name`) %>%
+  group_split()
+
+
+for (f in fs) {
+  chkpt <- unique(f$Checkpoint)
+  fn <- unique(f$`Task Name`)
+  d <- ldply(as.list(f$fname),read_csv) %>%
+    bind_rows() %>%
+    arrange(`Experiment Version`)
+  write_csv(d, path = file.path(datadir, paste0('chk-',chkpt,'_tsk-',fn,'.csv')))
+  file.remove(f$fname)
+}
+```
+
+
+
