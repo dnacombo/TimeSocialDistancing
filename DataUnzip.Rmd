@@ -1,4 +1,4 @@
----
+  ---
 title: "Time Social Distancing: Unzipping data"
 output: html_notebook
     
@@ -8,11 +8,14 @@ This document shows how to extract meaningful data from the tables exported by G
 
 First load useful packages and set root directory  (you may have to `install.packages`).
 ```{r, message=F}
-
 library(tidyverse)
 library(plyr)
 library(tools)
+```
 
+This is the critical place, where the zip file name on your computer should be entered.
+
+```{r, message=F}
 # These path and file name need to be changed
 rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 datafile <- file.path(rootdir,'data_exp_16303-v2.zip')
@@ -23,14 +26,15 @@ tmpdir <- file.path(rootdir,'.tmp')
 
 ## Unzip data
 
-This is the critical place, where the zip file name should be entered.
 ```{r}
+# get expeirmentID from the zipfile name
 experimentID <- gsub('.*data_exp_([[:digit:]]+)-v[[:digit:]]+.zip','\\1',datafile)
 
+# output directory is the zip filename, trunkated from experiment version
 datadir <- sub('-v[[:digit:]]+.zip','',datafile)
 
+# remove eventual previous output in that directory
 unlink(datadir,recursive=T)
-
 unlink(tmpdir,recursive=T)
 
 unzip(datafile,exdir=tmpdir)
@@ -38,14 +42,18 @@ unzip(datafile,exdir=tmpdir)
 
 ## Rename files
 
-We retrieve unique task identifiers: column "questionnaire or task name" from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0), based on expermient ID (i.e. language) retrieved from [this google sheet]('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0').
+We retrieve unique task identifiers: column `3` "questionnaire or task name" from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0), based on expermient ID (i.e. language) retrieved from [this google sheet]('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0').
 
 ```{r}
 library(gsheet)
+# read table from google sheet
 allnodes <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
+  # rename columns of interest with simple names
   dplyr::rename(order = 1,
-                UniqueName = 3) %>%
+                UniqueName = 4) %>%
+  # discard the comment line at the beginning of the table
   filter(order != 'Comment')
+
 
 experimentIDs <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0')
 
@@ -81,10 +89,7 @@ for (f in fs) {
     next
   }
 
-  prevChk <- filter(allnodes,prefix == 'checkpoint',order < CurrNode$order) %>%
-    slice(n())
-  
-  write_csv(d, path = file.path(datadir, paste0('chk-', prevChk$UniqueName, '_tsk-', CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv')))
+  write_csv(d, path = file.path(datadir, paste0(CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv')))
   
   file.remove(f)
 }
@@ -94,23 +99,81 @@ for (f in fs) {
 ## Merge experiment versions
 
 ```{r,message=F}
-fs <- list.files(datadir,pattern='chk-(.*)_tsk-(.*)_v-(.*).csv',full.names = T) %>%
+fs <- list.files(datadir,pattern='([^\\/]*)_v-(.*).csv',full.names = T) %>%
   tibble(fname=.) %>%
-  extract(fname,into=c('Checkpoint','Task Name','Experiment Version'),'chk-(.*)_tsk-(.*)_v-(.*).csv',remove = F) %>%
-  group_by(Checkpoint,`Task Name`) %>%
+  extract(fname,into=c('UniqueName','Experiment Version'),'([^\\/]*)_v-(.*).csv',remove = F) %>%
+  group_by(UniqueName) %>%
   group_split()
 
 
 for (f in fs) {
-  chkpt <- unique(f$Checkpoint)
-  fn <- unique(f$`Task Name`)
+  fn <- unique(f$UniqueName)
   d <- ldply(as.list(f$fname),read_csv) %>%
     bind_rows() %>%
     arrange(`Experiment Version`)
-  write_csv(d, path = file.path(datadir, paste0('chk-',chkpt,'_tsk-',fn,'.csv')))
+  write_csv(d, path = file.path(datadir, paste0(fn,'.csv')))
   file.remove(f$fname)
 }
 ```
 
+## output different column names to google sheet
 
+```{r}
+
+fs <- list.files(datadir,pattern='([^\\/]*).csv',full.names = T) %>%
+    tibble(fname=.) %>%
+    extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
+  group_by(UniqueName) %>%
+  group_split()
+
+d <- tibble()
+for (f in fs) {
+  # get column names into a column
+  # print(f)
+  d <- read_csv(f$fname, col_types = cols(), n_max = 1) %>%
+    colnames() %>%
+    tibble(Column = .) %>%
+    mutate(experimentID = experimentID,
+           UniqueName = f$UniqueName,
+           ColNum = 1:nrow(.)) %>%
+    bind_rows(d)
+}
+
+
+d %>%
+  pivot_wider(values_from = c('Column'),names_from = c('experimentID','UniqueName'),values_fn = list(Column = first)) %>%
+  write_csv('ColumnNames.csv',na = '')
+# googlesheets4::sheet_write('https://docs.google.com/spreadsheets/d/18RsKGYw4CgngaqqPomE1eacmlAfIkDB5DuzqwgLtDqM/edit#gid=0')
+
+```
+
+## For questionnaires specifically, capture question names
+```{r}
+fs <- list.files(datadir,pattern='([^\\/]*).csv',full.names = T) %>%
+    tibble(fname=.) %>%
+    extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
+  group_by(UniqueName) %>%
+  group_split()
+
+
+d <- tibble()
+for (f in fs) {
+  # get column names into a column
+  # print(f)
+  tmp <- read_csv(f$fname, col_types = cols())
+  if (startsWith(unique(tmp$`Tree Node Key`),'task')) next
+  
+  d <- tibble(Question = unique(tmp$`Question Key`)) %>%
+    mutate(experimentID = experimentID,
+           UniqueName = f$UniqueName,
+           KeyNum = 1:nrow(.)) %>%
+    bind_rows(d)
+
+}
+
+d %>%
+  pivot_wider(values_from = c('Question'),names_from = c('experimentID','UniqueName'),values_fn = list(Column = first)) %>%
+  write_csv('QuestionKeys.csv',na = '')
+
+```
 
