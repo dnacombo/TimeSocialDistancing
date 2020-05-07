@@ -3,3 +3,4 @@
 .RData
 .Ruserdata
 /example_DATA/*/*.csv
+.httr-oauth
