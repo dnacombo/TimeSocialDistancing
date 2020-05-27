@@ -1,0 +1,83 @@
+---
+title: "Extracting data for Questionnaire HADS"
+output: 
+  html_notebook: 
+    code_folding: hide
+    toc: yes
+params:
+  experimentID: 14926
+  rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+    
+---
+
+
+
+```{r, message=F}
+library(tidyverse)
+library(tools)
+source('helpers.R')
+```
+
+```{r, message=F}
+
+datadir = file.path(params$rootdir,'data_exp_16144')
+outdir = paste(datadir,'processed',sep='_')
+dir.create(outdir,showWarnings = F)
+
+experimentID <- unique(gsub('.*data_exp_([[:digit:]]+)','\\1',datadir))
+
+datafiles <- list.files(datadir,'S1_HADS_r.*.csv',full.names = T)
+
+tmpdir <- file.path(params$rootdir,'.tmp')
+unlink(tmpdir,recursive=T)
+
+
+```
+
+### Read and describe data
+
+```{r}
+orig <- Q_read(datafiles) %>%
+  mutate(Run = as.factor(str_replace(File,'S._HADS_r(.).csv','\\1')))
+N <- Q_Nsuj(orig)
+
+
+```
+
+Number of participants who completed this questionnaire:
+`r N`
+
+```{r}
+
+Q_Complete(orig)
+
+```
+
+## Questionnaire scores
+
+```{r}
+
+# Scoring for each item is annotated next to the response and can be 0,1, 2 or 3
+# Sum scores for each of the seven items HADS_A (anxiety score) separately from the HADS_D (depression score)
+
+(data_in_shape <- orig %>%
+  select(`Participant Private ID`,`Local Date`, Run,
+         `Question Key`, Response) %>%
+   filter(grepl('HADS_[AD]',x=`Question Key`)) %>%
+  mutate(HADS = as.factor(str_replace(`Question Key`,"HADS_([AD]).*",'\\1')),
+         Response = as.numeric(str_replace(Response,"([0-3]) ?- .*",'\\1')),
+         `Local Date` = parse_datetime(`Local Date`,format = '%d/%m/%Y %H:%M:%S'),
+         `WeekDay` = lubridate::wday(`Local Date`)) %>%
+   group_by(`Participant Private ID`,HADS,Run) %>% 
+   dplyr::summarize(Score = sum(Response))
+) %>% write_csv(file.path(outdir,'S1_HADS.csv'))
+
+```
+
+
+```{r}
+ggplot(data_in_shape,aes(x=Run,y=Score,fill=HADS)) +
+  geom_col(position = 'dodge') +
+  # coord_polar() +
+  facet_wrap(~`Participant Private ID`)
+```

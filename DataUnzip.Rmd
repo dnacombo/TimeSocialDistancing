@@ -1,11 +1,18 @@
 ---
-title: "Time Social Distancing: Unzipping data"
-output: 
-  html_notebook: 
+title: "Data Unzip"
+output:
+  html_document:
     code_folding: hide
+    df_print: paged
     toc: yes
+  html_notebook:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+params:
+  experimentID: 14926
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 ---
-
 
 ```{r, message=F}
 library(tidyverse)
@@ -13,40 +20,37 @@ library(plyr)
 library(tools)
 ```
 
-```{r, message=F}
-# These path and file name need to be changed
-rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-datafiles <- list.files(rootdir,'data_exp_16144-v.*.zip',full.names = T)
+### list zip files
 
-tmpdir <- file.path(rootdir,'.tmp')
+```{r, message=F}
+
+zipfiles <- list.files(params$rootdir,paste0('data_exp_',params$experimentID,'-v.*.zip'),full.names = T)
+
+tmpdir <- file.path(params$rootdir,'.tmp')
 
 ```
 
-This document shows the output of data extraction and merge for files ``r basename(datafiles)``
+This document shows the output of data extraction and merge for files ``r basename(zipfiles)``
 
-## Unzip data
+### Unzip data
 
 ```{r}
 
-# get expeirmentID from the zipfile name
-experimentID <- unique(gsub('.*data_exp_([[:digit:]]+)-v[[:digit:]]+.zip','\\1',datafiles))
-if (length(experimentID) > 1) {stop('Only include data from one experiment (eventually multiple versions)')}
-
 # output directory is the zip filename, trunkated from experiment version
-datadir <- unique(sub('-v[[:digit:]]+.zip','',datafiles))
+datadir <- unique(sub('-v[[:digit:]]+.zip','',zipfiles))
 
 # remove eventual previous output in that directory
 unlink(datadir,recursive=T)
 unlink(tmpdir,recursive=T)
-dum <- sapply(datafiles,function(x){unzip(x,exdir=tmpdir)})
+dum <- sapply(zipfiles,function(x){unzip(x,exdir=tmpdir)})
 
 ```
 
-We just unzipped data from experiment ``r experimentID`` to a temporary folder.
+We just unzipped data from experiment ``r params$experimentID`` to a temporary folder.
 
-## Rename files
+### Rename files
 
-We retrieve unique task identifiers: column `3` "questionnaire or task name" from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0), based on expermient ID (i.e. language) retrieved from [this google sheet]('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0').
+We retrieve unique task identifiers: column `3` "Gorilla Protocol names" from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0), based on expermient ID (i.e. language) retrieved from [this google sheet]('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0').
 
 ```{r}
 library(gsheet)
@@ -61,12 +65,12 @@ allnodes <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a3
 
 experimentIDs <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0')
 
-nodekey <- filter(experimentIDs,`Experiment ID` == experimentID)$NodeKey
+nodekey <- filter(experimentIDs,`Experiment ID` == params$experimentID)$NodeKey
 ```
 
-Now that we have these, we know that the current data comes from experiment ``r experimentID`` named ``r nodekey`` in [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0). We can rename all files using these `UniqueName` values.
+Now that we have these, we know that the current data comes from experiment ``r params$experimentID``  (``r nodekey``). We can rename all files using `UniqueName` values from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0).
 
-The text below shows eventual missing data. Check if nodes below are present in [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0)
+The text below shows eventual missing data. Check if the nodes below need to be present in [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0)
 
 ```{r,warning=F}
 fs <- list.files(tmpdir,full.names = T,recursive = T)
@@ -74,13 +78,13 @@ dir.create(datadir)
 
 for (f in fs) {
   d <- switch(file_ext(f),
-         csv = read_csv(f,col_types = cols()),
-         xlsx = readxl::read_excel(f)) %>%
+              csv = read_csv(f,col_types = cols()),
+              xlsx = readxl::read_excel(f)) %>%
     filter(!is.na(`Task Name`))
   # print(f)
   
   if (nrow(d) == 0) {
-    print(paste('No data for', basename(f)))
+    cat(paste('No data for', basename(f)),sep='\n')
     file.remove(f)
     next
   }
@@ -88,11 +92,11 @@ for (f in fs) {
   CurrNode <- filter(allnodes,get(nodekey) == gsub('.*-([[:alnum:]]{4})','\\1',unique(d$`Tree Node Key`)))
   
   if (nrow(CurrNode) == 0 ){
-    print(paste('Could not locate task for',basename(f), ':', unique(d$`Task Name`)))
+    cat(paste('Could not locate task for',basename(f), ':', unique(d$`Task Name`)),sep='\n')
     file.remove(f)
     next
   }
-
+  
   write_csv(d, path = file.path(datadir, paste0(CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv')))
   
   file.remove(f)
@@ -100,8 +104,9 @@ for (f in fs) {
 
 ```
 
-## Merge experiment versions
+### Merge experiment versions
 
+Output files created:
 ```{r,message=F}
 fs <- list.files(datadir,pattern='([^\\/]*)_v-(.*).csv',full.names = T) %>%
   tibble(fname=.) %>%
@@ -116,19 +121,20 @@ for (f in fs) {
     bind_rows() %>%
     arrange(`Experiment Version`)
   write_csv(d, path = file.path(datadir, paste0(fn,'.csv')))
+  cat(paste0(fn,'.csv'),sep='\n')
   file.remove(f$fname)
 }
 ```
 
-`done !`
+### output different column names to a table
 
-## output different column names to a table
+Storing the results in `ColumnNames.csv`
 
 ```{r}
 
 fs <- list.files(datadir,pattern='([^\\/]*).csv',full.names = T) %>%
-    tibble(fname=.) %>%
-    extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
+  tibble(fname=.) %>%
+  extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
   group_by(UniqueName) %>%
   group_split()
 
@@ -139,27 +145,29 @@ for (f in fs) {
   d <- read_csv(f$fname, col_types = cols(), n_max = 1) %>%
     colnames() %>%
     tibble(Column = .) %>%
-    mutate(experimentID = experimentID,
+    mutate(experimentID = params$experimentID,
            UniqueName = f$UniqueName,
            ColNum = 1:nrow(.)) %>%
     bind_rows(d)
 }
 
 
-d %>%
-  pivot_wider(values_from = c('Column'),names_from = c('experimentID','UniqueName'),values_fn = list(Column = first)) %>%
-  write_csv(file.path(datadir,'ColumnNames.csv'),na = '')
-# googlesheets4::sheet_write('https://docs.google.com/spreadsheets/d/18RsKGYw4CgngaqqPomE1eacmlAfIkDB5DuzqwgLtDqM/edit#gid=0')
+ColumnNames <- d %>%
+  pivot_wider(values_from = c('Column'),names_from = c('experimentID','UniqueName'),values_fn = list(Column = first))
 
+write_csv(ColumnNames,file.path(datadir,'ColumnNames.csv'),na = '')
+(ColumnNames)
 ```
 
-`done !`
 
-## For questionnaires specifically, capture question names
-```{r}
+### For questionnaires, list question names
+
+Storing the results in `QuestionKeys.csv`
+
+```{r, warning=F}
 fs <- list.files(datadir,pattern='(S[^\\/]*).csv',full.names = T) %>%
-    tibble(fname=.) %>%
-    extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
+  tibble(fname=.) %>%
+  extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
   group_by(UniqueName) %>%
   group_split()
 
@@ -172,17 +180,19 @@ for (f in fs) {
   if (startsWith(unique(tmp$`Tree Node Key`),'task')) next
   
   d <- tibble(Question = unique(tmp$`Question Key`)) %>%
-    mutate(experimentID = experimentID,
+    mutate(experimentID = params$experimentID,
            UniqueName = f$UniqueName,
            KeyNum = 1:nrow(.)) %>%
     bind_rows(d)
-
+  
 }
 
-d %>%
-  pivot_wider(values_from = c('Question'),names_from = c('experimentID','UniqueName'),values_fn = list(Column = first)) %>%
-  write_csv(file.path(datadir,'QuestionKeys.csv'),na = '')
+QuestionKeys <- d %>%
+  pivot_wider(values_from = c('Question'),names_from = c('experimentID','UniqueName'),values_fn = list(Column = first))
+write_csv(QuestionKeys,file.path(datadir,'QuestionKeys.csv'),na = '')
+(QuestionKeys)
 
 ```
 
-`done !`
+
+

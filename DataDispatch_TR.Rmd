@@ -1,0 +1,47 @@
+---
+title: "Data TR"
+params:
+  experimentID: 16144
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+---
+
+```{r, message=F}
+library(tidyverse)
+library(plyr)
+library(tools)
+```
+
+```{r, message=F}
+# These path and file name need to be changed
+
+```
+
+# Unzipping data
+```{r child='DataUnzip.Rmd'}
+
+```
+
+# Questionnaire ASQ
+```{r, child='Questionnaire_ASQ.Rmd'}
+
+```
+
+# Questionnaire BFI-10
+```{r, child='Questionnaire_BFI-10.Rmd'}
+
+```
+
+# Questionnaire HADS
+```{r, child='Questionnaire_HADS.Rmd'}
+
+```
+

@@ -1,0 +1,92 @@
+---
+title: "Extracting data for Questionnaire BFI-10"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    toc: yes
+params:
+  experimentID: 14926
+  rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+---
+
+```{r, message=F}
+library(tidyverse)
+library(plyr)
+library(tools)
+source('helpers.R')
+```
+
+```{r, message=F}
+
+datadir = file.path(params$rootdir,paste0('data_exp_', params$experimentID))
+outdir = paste(datadir,'processed',sep='_')
+dir.create(outdir,showWarnings = F)
+
+experimentID <- params$experimentID
+
+datafile <- list.files(datadir,'S1_BFI.csv',full.names = T)
+
+tmpdir <- file.path(params$rootdir,'.tmp')
+unlink(tmpdir,recursive=T)
+
+
+```
+
+### Read and describe data
+
+```{r}
+
+orig <- Q_read(datafile)
+
+N <- Q_Nsuj(orig)
+
+
+```
+
+Number of participants who completed this questionnaire:
+`r N`
+
+```{r}
+
+Q_Complete(orig)
+
+```
+
+## Questionnaire scores
+
+```{r}
+
+# this function will help reverse scores
+R <- function(x) {6 - x}
+
+(data_in_shape <- orig %>%
+  select(`Participant Private ID`,`Local Date`,
+         `Question Key`, Response) %>%
+  filter(grepl('-quantised',x=`Question Key`)) %>%
+  mutate(`Question Key` = as.factor(str_replace(`Question Key`,"BFI-10_([0-9]+)-quantised",'Q\\1')),
+         Response = as.numeric(Response),
+         `Local Date` = parse_datetime(`Local Date`,format = '%d/%m/%Y %H:%M:%S'),
+         `WeekDay` = lubridate::wday(`Local Date`)) %>%
+  pivot_wider(names_from = `Question Key`,values_from = Response) %>%
+    mutate(Extraversion      = (R(Q1) + Q6) /2,
+         Agreableness      = (R(Q7) + Q2) /2,
+         Conscientiousness = (R(Q3) + Q8) /2,
+         Neuroticism       = (R(Q4) + Q9) /2,
+         Openness          = (R(Q5) + Q10) /2) %>%
+  select(-starts_with('Q'))
+  ) %>%
+  write_csv(file.path(outdir,basename(datafile)))
+
+```
+
+
+```{r}
+ggplot(pivot_longer(data_in_shape,Extraversion:Openness,names_to = 'BigFive', values_to = 'Score'),aes(x=BigFive,y=Score,fill=BigFive,group=`Participant Private ID`)) +
+  geom_col() +
+  # coord_polar() +
+  facet_wrap(~`Participant Private ID`) +
+  theme(axis.text.x = element_blank())
+```
