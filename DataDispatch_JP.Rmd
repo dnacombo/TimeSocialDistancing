@@ -1,7 +1,7 @@
 ---
-title: "Data FR_redirect"
+title: "Data JP"
 params:
-  experimentID: 16303
+  experimentID: 16612
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
@@ -31,6 +31,7 @@ source('helpers.R')
 
 ```
 
+
 # Questionnaire ASQ
 ```{r, child='Questionnaire_ASQ.Rmd'}
 
@@ -47,7 +48,7 @@ source('helpers.R')
 ```
 
 # Task Delay Discounting
-```{r, child='Task_DelayDiscounting.Rmd'}
-
+```{r, child=NULL}
+'Task_DelayDiscounting.Rmd'
 ```
 

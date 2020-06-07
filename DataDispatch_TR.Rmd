@@ -16,8 +16,8 @@ output:
 
 ```{r, message=F}
 library(tidyverse)
-library(plyr)
-library(tools)
+source('helpers.R')
+
 ```
 
 ```{r, message=F}
@@ -29,6 +29,13 @@ library(tools)
 ```{r child='DataUnzip.Rmd'}
 
 ```
+
+# collect to be translated materials
+
+```{r child='DataTranslate.Rmd'}
+
+```
+
 
 # Questionnaire ASQ
 ```{r, child='Questionnaire_ASQ.Rmd'}
@@ -45,3 +52,9 @@ library(tools)
 
 ```
 
+
+# Task Delay Discounting
+```{r, child='Task_DelayDiscounting.Rmd'}
+
+```
+  

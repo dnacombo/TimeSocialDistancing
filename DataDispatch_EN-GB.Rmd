@@ -1,7 +1,7 @@
 ---
-title: "Data FR_redirect"
+title: "Data EN-GB"
 params:
-  experimentID: 16303
+  experimentID: 14926
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
@@ -15,6 +15,7 @@ output:
 ---
 
 ```{r, message=F}
+params$experimentID
 library(tidyverse)
 source('helpers.R')
 
@@ -24,12 +25,12 @@ source('helpers.R')
 ```{r child='DataUnzip.Rmd'}
 
 ```
-
 # collect to be translated materials
 
 ```{r child='DataTranslate.Rmd'}
 
 ```
+
 
 # Questionnaire ASQ
 ```{r, child='Questionnaire_ASQ.Rmd'}

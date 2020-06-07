@@ -1,26 +1,27 @@
 ---
 title: "Extracting data for Questionnaire HADS"
-output: 
-  html_notebook: 
+params:
+  experimentID: 16144
+  rootdir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  html_notebook:
     code_folding: hide
     toc: yes
-params:
-  experimentID: 14926
-  rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-    
 ---
 
 
 
 ```{r, message=F}
 library(tidyverse)
-library(tools)
 source('helpers.R')
 ```
 
 ```{r, message=F}
 
-datadir = file.path(params$rootdir,'data_exp_16144')
+datadir = file.path(params$rootdir,paste0('data_exp_', params$experimentID, '_', ExperimentName))
 outdir = paste(datadir,'processed',sep='_')
 dir.create(outdir,showWarnings = F)
 
@@ -31,6 +32,10 @@ datafiles <- list.files(datadir,'S1_HADS_r.*.csv',full.names = T)
 tmpdir <- file.path(params$rootdir,'.tmp')
 unlink(tmpdir,recursive=T)
 
+if (is_empty(datafiles)){
+  print('No HADS data')
+  knitr::knit_exit()
+  }
 
 ```
 

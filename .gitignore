@@ -2,5 +2,5 @@
 .Rhistory
 .RData
 .Ruserdata
-/example_DATA/*/*.csv
+/*DATA/*
 .httr-oauth

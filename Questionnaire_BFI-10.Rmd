@@ -8,20 +8,18 @@ output:
     code_folding: hide
     toc: yes
 params:
-  experimentID: 14926
-  rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  experimentID: 15575
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 ---
 
 ```{r, message=F}
 library(tidyverse)
-library(plyr)
-library(tools)
 source('helpers.R')
 ```
 
 ```{r, message=F}
 
-datadir = file.path(params$rootdir,paste0('data_exp_', params$experimentID))
+datadir = file.path(params$rootdir,paste0('data_exp_', params$experimentID, '_', ExperimentName))
 outdir = paste(datadir,'processed',sep='_')
 dir.create(outdir,showWarnings = F)
 
@@ -32,7 +30,10 @@ datafile <- list.files(datadir,'S1_BFI.csv',full.names = T)
 tmpdir <- file.path(params$rootdir,'.tmp')
 unlink(tmpdir,recursive=T)
 
-
+if (is_empty(datafile)){
+  print('No BFI data')
+  knitr::knit_exit()
+  }
 ```
 
 ### Read and describe data

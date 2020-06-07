@@ -1,0 +1,258 @@
+---
+title: "Data Translate"
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+params:
+  experimentID: 16303
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+---
+
+```{r, message=F}
+library(tidyverse)
+source('helpers.R')
+```
+
+### For questionnaires, list all responses
+
+
+```{r, warning=F}
+datadir <- file.path(params$rootdir,
+                     paste0('data_exp_',
+                            params$experimentID,'_',
+                            filter(experimentIDs,`Experiment ID` == params$experimentID)$ExperimentName))
+
+fs <- list.files(datadir,pattern='(S[^\\/]*).csv',full.names = T) %>%
+  tibble(fname=.) %>%
+  extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
+  mutate(UniqueName = str_replace(UniqueName,'_r[[:digit:]]+$','')) %>%
+  group_by(UniqueName) %>%
+  group_split()
+
+
+d <- tibble()
+Responses <- tibble()
+Demographics <- tibble()
+for (f in fs) {
+  # get column names into a column
+  # print(f)
+  tmp <- plyr::ldply(f$fname,function(ff){read_csv(ff, col_types = cols(.default = col_character()))})
+  if (all(startsWith(unique(tmp$`Tree Node Key`),'task'))) next
+
+  d <- tibble(Question = unique(tmp$`Question Key`)) %>%
+    mutate(experimentID = params$experimentID,
+           UniqueName = unique(f$UniqueName),
+           KeyNum = 1:nrow(.))
+  
+  dd <- d %>%
+    filter(! Question %in% c('BEGIN QUESTIONNAIRE', 'END QUESTIONNAIRE')) %>%
+    group_by(Question,UniqueName) %>%
+    group_split()
+  
+  w <- tibble()
+  for (d1 in dd) {
+    w <- expand_grid(experimentID = d1$experimentID,UniqueName = d1$UniqueName,Question = d1$Question, Response = unique(filter(tmp,`Question Key` == d1$Question)$`Response`))%>%
+      filter(!is.na(Response)) %>%
+      arrange(Response) %>%
+      bind_rows(w)
+  }
+  
+  Responses <- w %>%
+    bind_rows(Responses)
+  
+
+  
+}
+
+Demographics <- filter(Responses,UniqueName == "S1_Demographics") %>%
+  bind_rows(Demographics)
+  
+Responses <- Responses %>%
+  filter(is.na(as.numeric(Response))) %>%
+  group_by(experimentID,UniqueName,Question) %>%
+  mutate(n=1:n()) %>%
+  pivot_wider(names_from = experimentID,values_from = Response) %>%
+  select(-n)
+
+if (nrow(Demographics) != 0) {
+Demographics <- Demographics %>%
+  filter(is.na(as.numeric(Response))) %>%
+  group_by(experimentID,UniqueName,Question) %>%
+  mutate(n=1:n()) %>%
+  pivot_wider(names_from = experimentID,values_from = Response) %>%
+  select(-n)
+} else {
+Demographics <- Demographics %>%
+  pivot_wider(names_from = experimentID,values_from = Response)
+
+}
+```
+
+Adding the results to `QuestionnaireTranslationSheet.csv`
+
+
+```{r}
+
+if ( !file.exists(f <- file.path(datadir,'..','QuestionnaireTranslationSheet.csv'))){
+  allResponses <- Responses %>%
+    write_csv(f)
+} else {
+  # read all colum names in all seen experiments so far
+  allResponses <- read_csv(file = f,col_types = cols()) %>%
+    # if experimentID exists already, update with current ColumnNames
+    select(-matches(as.character(params$experimentID))) %>%
+    full_join(Responses,by = c("UniqueName", "Question")) %>%
+    group_by(UniqueName,Question) %>%
+    group_split()
+  
+  nuallResponses <- tibble()
+  for (r in allResponses) {
+    eids <- colnames(r) %>% str_subset(pattern = '[[:digit:]]+')
+    alluniques <- list()
+    for (i in eids) {
+      alluniques[[i]] = unique(r[[i]])
+    }
+    ls <- sapply(alluniques,length)
+    alluniques2 <- tibble(UniqueName = r$UniqueName[1],Question=r$Question[1],.rows = max(ls))
+    for (i in eids) {
+      alluniques2 <- mutate( alluniques2, !!i := c(unique(r[[i]]),rep(NA,max(ls) - ls[i])))
+    }
+    nuallResponses <- bind_rows(nuallResponses, alluniques2)
+  }
+  
+  
+    write_csv(nuallResponses,f)
+}
+
+
+if ( !file.exists(f <- file.path(datadir,'..','DemographicsTranslationSheet.csv'))){
+  allDemographics <- Demographics %>%
+    mutate(Output = NA) %>%
+    write_csv(f)
+} else {
+  # read all colum names in all seen experiments so far
+  allDemographics <- read_csv(file = f,col_types = cols()) %>%
+    # if experimentID exists already, update with current ColumnNames
+    select(-matches(as.character(params$experimentID)),
+           -Output) %>%
+    full_join(Demographics,by = c("UniqueName", "Question")) %>%
+    group_by(UniqueName,Question) %>%
+    group_split()
+  
+  nuallDemographics <- tibble()
+  for (r in allDemographics) {
+    eids <- colnames(r) %>% str_subset(pattern = '[[:digit:]]+')
+    alluniques <- list()
+    for (i in eids) {
+      alluniques[[i]] = unique(r[[i]])
+    }
+    ls <- sapply(alluniques,length)
+    alluniques2 <- tibble()
+    for (i in eids) {
+      alluniques2 <- tibble(UniqueName = r$UniqueName[1], Question=r$Question[1], !!i := unique(r[[i]])) %>%
+        bind_rows(alluniques2)
+    }
+    nuallDemographics <- bind_rows(nuallDemographics, alluniques2)
+  }
+  
+  nuallDemographics <- mutate(nuallDemographics,Output=NA) %>%
+    write_csv(f)
+}
+
+```
+
+
+### For tasks, list all responses
+
+
+```{r, warning=F}
+datadir <- file.path(params$rootdir,
+                     paste0('data_exp_',
+                            params$experimentID,'_',
+                            filter(experimentIDs,`Experiment ID` == params$experimentID)$ExperimentName))
+
+fs <- list.files(datadir,pattern='(S[^\\/]*).csv',full.names = T) %>%
+  tibble(fname=.) %>%
+  extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
+  mutate(UniqueName = str_replace(UniqueName,'_r[[:digit:]]+$',''))%>%
+  group_by(UniqueName) %>%
+  group_split()
+
+
+d <- tibble()
+for (f in fs) {
+  # get column names into a column
+  # print(f)
+  tmp <- plyr::ldply(f$fname,function(ff){read_csv(ff, col_types = cols(.default = col_character()))})
+  if (all(startsWith(unique(tmp$`Tree Node Key`),'questionnaire'))) next
+  
+  tmp <- tmp %>% select(-(1:display))
+  if (is_empty(tmp)) next
+  
+  d <- tmp %>%
+    mutate_all(as.character) %>%
+    pivot_longer(cols =1:ncol(.),names_to = 'Field',values_to = 'Value') %>%
+    filter(Value != 'NA',
+           ! Field %in% c('stim','Stim')) %>%
+    mutate(experimentID = params$experimentID,
+           UniqueName = unique(f$UniqueName)) %>%
+    group_by(Field,experimentID,UniqueName) %>%
+    distinct() %>%
+    arrange(experimentID,UniqueName,Field,Value) %>%
+    select(experimentID,UniqueName,Field,Value) %>%
+    bind_rows(d) 
+}
+
+Values <- d %>%
+  filter(is.na(as.numeric(Value))) %>%
+  group_by(experimentID,UniqueName,Field) %>%
+  mutate(n=1:n()) %>%
+  pivot_wider(names_from = experimentID,values_from = Value) %>%
+  select(-n)
+
+```
+
+Adding the results to `TaskTranslationSheet.csv`
+
+
+```{r}
+
+if ( !file.exists(f <- file.path(datadir,'..','TaskTranslationSheet.csv'))){
+  allValues <- Values %>%
+    write_csv(f)
+} else {
+  # read all colum names in all seen experiments so far
+  allValues <- read_csv(file = f,col_types = cols()) %>%
+    # if experimentID exists already, update with current ColumnNames
+    select(-matches(as.character(params$experimentID))) %>%
+    full_join(Values,by = c("UniqueName", "Field")) %>%
+    group_by(UniqueName,Field) %>%
+    group_split()
+  
+  nuallValues <- tibble()
+  for (r in allValues) {
+    eids <- colnames(r) %>% str_subset(pattern = '[[:digit:]]+')
+    alluniques <- list()
+    for (i in eids) {
+      alluniques[[i]] = unique(r[[i]])
+    }
+    ls <- sapply(alluniques,length)
+    alluniques2 <- tibble(UniqueName = r$UniqueName[1],Field=r$Field[1],.rows = max(ls))
+    for (i in eids) {
+      alluniques2 <- mutate( alluniques2, !!i := c(unique(r[[i]]),rep(NA,max(ls) - ls[i])))
+    }
+    nuallValues <- bind_rows(nuallValues, alluniques2)
+  }
+  
+  
+    write_csv(nuallValues,f)
+}
+
+```
+
