@@ -10,7 +10,7 @@ output:
     df_print: paged
     toc: yes
 params:
-  experimentID: 16303
+  experimentID: 16095
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 ---
 
@@ -22,8 +22,8 @@ source('helpers.R')
 ### list zip files
 
 ```{r, message=F}
-
-zipfiles <- list.files(params$rootdir,paste0('data_exp_',params$experimentID,'-v.*.zip'),full.names = T)
+eid <- as.numeric(params$experimentID)
+zipfiles <- unlist(sapply(params$experimentID,function(f){list.files(params$rootdir,paste0('data_exp_',f,'-v.*.zip'),full.names = T)}))
 
 tmpdir <- file.path(params$rootdir,'.tmp')
 
@@ -49,7 +49,8 @@ We retrieve unique task identifiers: column `3` "Gorilla Protocol names" from [t
 ```{r}
 
 # output directory is the zip filename plus experiment name
-datadir <- unique(sub('-v[[:digit:]]+.zip',paste0('_',ExperimentName),zipfiles))
+
+datadir <- file.path(params$rootdir,paste0('data_exp_', paste(as.character(params$experimentID),collapse = '-'), '_', ExperimentName[1]))
 
 # remove eventual previous output in that directory
 unlink(datadir,recursive=T)
@@ -58,10 +59,11 @@ unlink(datadir,recursive=T)
 
 Now that we have these, we know that the current data comes from experiment ``r params$experimentID``  (``r ExperimentName``). We can rename all files using `UniqueName` values from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0).
 
-The text below shows eventual missing data. Check if the nodes below need to be present in [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0)
+
+**The text below shows eventual missing data. Check if the nodes below need to be present in [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0)**
 
 ```{r,warning=F}
-  fs <- list.files(tmpdir,full.names = T,recursive = T)
+fs <- list.files(tmpdir,full.names = T,recursive = T)
 dir.create(datadir)
 
 for (f in fs) {
@@ -72,7 +74,7 @@ for (f in fs) {
   # print(f)
   
   if (nrow(d) == 0) {
-    cat(paste('No data for', basename(f)),sep='\n')
+    # cat(paste('No data for', basename(f)),sep='\n')
     file.remove(f)
     next
   }
@@ -94,7 +96,8 @@ for (f in fs) {
 
 ### Merge experiment versions
 
-Output files created:
+**Output files created:**
+
 ```{r,message=F}
 fs <- list.files(datadir,pattern='([^\\/]*)_v-(.*).csv',full.names = T) %>%
   tibble(fname=.) %>%
@@ -133,7 +136,7 @@ for (f in fs) {
   d <- read_csv(f$fname, col_types = cols(), n_max = 1) %>%
     colnames() %>%
     tibble(Column = .) %>%
-    mutate(experimentID = params$experimentID,
+    mutate(experimentID = paste(params$experimentID,collapse='-'),
            UniqueName = f$UniqueName,
            ColNum = 1:nrow(.)) %>%
     bind_rows(d)
@@ -156,8 +159,9 @@ if ( !file.exists(f <- file.path(datadir,'..','extraColumnNames.csv'))){
 } else {
   # read all colum names in all seen experiments so far
   allColumnNames <- read_csv(file = f,col_types = cols()) %>%
+    mutate(experimentID = as.character(experimentID)) %>%
     # if experimentID exists already, update with current ColumnNames
-    filter(experimentID != params$experimentID) %>%
+    filter( experimentID != paste(params$experimentID,collapse='-')) %>%
     bind_rows(extraColumnNames) %>%
     write_csv(f)
 }
@@ -191,7 +195,7 @@ for (f in fs) {
   if (startsWith(unique(tmp$`Tree Node Key`),'task')) next
   
   d <- tibble(Question = unique(tmp$`Question Key`)) %>%
-    mutate(experimentID = params$experimentID,
+    mutate(experimentID = paste(params$experimentID,collapse = '-'),
            UniqueName = f$UniqueName,
            KeyNum = 1:nrow(.)) %>%
     bind_rows(d)

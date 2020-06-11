@@ -24,12 +24,6 @@ source('helpers.R')
 ```{r child='DataUnzip.Rmd'}
 
 ```
-# collect to be translated materials
-
-```{r child='DataTranslate.Rmd'}
-
-```
-
 
 # Questionnaire ASQ
 ```{r, child='Questionnaire_ASQ.Rmd'}

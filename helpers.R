@@ -20,7 +20,10 @@ if (file.exists(f <- file.path(params$rootdir,'ExperimentIDs.csv')))   {
     write_csv(f)
 }
 
-ExperimentName <- dplyr::filter(experimentIDs,`Experiment ID` == params$experimentID)$ExperimentName
+if (!is_null(params$experimentID)) {
+  ExperimentName <- dplyr::filter(experimentIDs,`Experiment ID` %in% params$experimentID)$ExperimentName
+}else{ ExperimentName <- NULL
+}
 
 
 Q_cols <- cols(`Participant Private ID` = col_factor())
@@ -42,7 +45,7 @@ Q_read <- function(datafiles) {
 Q_Nsuj <- function(orig){
   
   N <- orig %>% filter(`Question Key` %in% 'END QUESTIONNAIRE') %>%
-    group_by(File) %>%
+    group_by(File,`Experiment ID`) %>%
     summarize(N = n())
 }
 
@@ -76,7 +79,7 @@ T_read <- function(datafiles) {
 T_Nsuj <- function(orig){
   
   N <- orig %>% filter(`Trial Number` %in% 'END TASK') %>%
-    group_by(File) %>%
+    group_by(File,`Experiment ID`) %>%
     summarize(N = n())
 }
 

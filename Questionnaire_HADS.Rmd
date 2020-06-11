@@ -21,7 +21,7 @@ source('helpers.R')
 
 ```{r, message=F}
 
-datadir = file.path(params$rootdir,paste0('data_exp_', params$experimentID, '_', ExperimentName))
+datadir = file.path(params$rootdir,paste0('data_exp_', paste(params$experimentID,collapse='-'), '_', ExperimentName[1]))
 outdir = paste(datadir,'processed',sep='_')
 dir.create(outdir,showWarnings = F)
 

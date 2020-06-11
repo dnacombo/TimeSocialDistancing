@@ -1,7 +1,7 @@
 ---
-title: "Data IN_short"
+title: "Data CA-FR"
 params:
-  experimentID: 18452
+  experimentID: 16257
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
@@ -24,11 +24,6 @@ source('helpers.R')
 ```{r child='DataUnzip.Rmd'}
 
 ```
-# collect to be translated materials
-
-```{r child='DataTranslate.Rmd'}
-
-```
 
 
 # Questionnaire ASQ
@@ -46,8 +41,8 @@ source('helpers.R')
 
 ```
 
-# Task Delay Discounting
-```{r, child='Task_DelayDiscounting.Rmd'}
+<!-- # Task Delay Discounting -->
+<!-- ```{r, child='Task_DelayDiscounting.Rmd'} -->
 
-```
+<!-- ``` -->
 

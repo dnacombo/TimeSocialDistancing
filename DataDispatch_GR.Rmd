@@ -1,7 +1,7 @@
 ---
-title: "Data EN-GB"
+title: "Data GR"
 params:
-  experimentID: 14926
+  experimentID: 15684
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
@@ -15,7 +15,6 @@ output:
 ---
 
 ```{r, message=F}
-params$experimentID
 library(tidyverse)
 source('helpers.R')
 

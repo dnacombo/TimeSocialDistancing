@@ -20,11 +20,6 @@ source('helpers.R')
 
 ```
 
-```{r, message=F}
-# These path and file name need to be changed
-
-```
-
 # Unzipping data
 ```{r child='DataUnzip.Rmd'}
 

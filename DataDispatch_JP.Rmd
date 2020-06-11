@@ -25,13 +25,7 @@ source('helpers.R')
 
 ```
 
-# collect to be translated materials
-
-```{r child='DataTranslate.Rmd'}
-
-```
-
-
+  
 # Questionnaire ASQ
 ```{r, child='Questionnaire_ASQ.Rmd'}
 
@@ -47,8 +41,8 @@ source('helpers.R')
 
 ```
 
-# Task Delay Discounting
-```{r, child=NULL}
-'Task_DelayDiscounting.Rmd'
-```
+<!-- # Task Delay Discounting -->
+<!-- ```{r, child=NULL} -->
+<!-- 'Task_DelayDiscounting.Rmd' -->
+<!-- ``` -->
 

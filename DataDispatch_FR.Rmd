@@ -1,7 +1,7 @@
 ---
-title: "Data FR_redirect"
+title: "Data FR"
 params:
-  experimentID: 16303
+  experimentID: [15096,16303]
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
@@ -25,11 +25,6 @@ source('helpers.R')
 
 ```
 
-# collect to be translated materials
-
-```{r child='DataTranslate.Rmd'}
-
-```
 
 # Questionnaire ASQ
 ```{r, child='Questionnaire_ASQ.Rmd'}
