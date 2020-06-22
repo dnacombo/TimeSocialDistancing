@@ -67,7 +67,7 @@ Q_Complete <- function(orig) {
 T_read <- function(datafiles) {
   orig <- tibble()
   for (f in datafiles) {
-    orig <- read_csv(f,col_types = cols()) %>%
+    orig <- read_csv(f,col_types = cols(.default = col_character())) %>%
       mutate(File = basename(f))%>%
       bind_rows(orig)
   }
@@ -93,6 +93,7 @@ T_Complete <- function(orig) {
     facet_wrap(~File) +
     ylab('Time to complete (s, log scale)') +
     scale_y_log10()
+  print(d %>% summarize(n=n()))
   print(p)
   
 }
