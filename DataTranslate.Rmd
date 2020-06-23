@@ -25,6 +25,8 @@ ToMapT <- read_csv(file.path(params$rootdir,'ToMapSheetTask.csv'),col_types = co
 ### For questionnaires, list all responses
 
 ```{r, warning=F}
+
+# first list all files, remove processed ones, extract experimentID and UniqueName
 fs <- list.files(params$rootdir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
   filter(! str_detect(fname,'processed')) %>%
@@ -39,46 +41,39 @@ fs <- list.files(params$rootdir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names
 #   summarize(n = 1) %>% select(-n) %>%
 #   write_csv(f)
 
+# for each data file,
 Responses <- tibble()
 for (f in fs) {
-  # get column names into a column
   # print(f)
+  # skip if it's a task file
   if (all(startsWith(read_csv(f$fname[1], col_types = cols(), n_max = 1)$`Tree Node Key`,'task'))) next
+  
+  # read the files (maybe several runs)
   tmp <- plyr::ldply(f$fname,function(ff){read_csv(ff, col_types = cols(.default = col_character()))})
+  
   eid <- unique(f$`experimentID`)
+  
+  # turn column names into a column:
   d <- tibble(Question = unique(tmp$`Question Key`)) %>%
     mutate(experimentID = eid,
            UniqueName = f$UniqueName[1],
            KeyNum = 1:nrow(.))
   
   dd <- d %>%
-    # filter(! Question %in% c('BEGIN QUESTIONNAIRE', 'END QUESTIONNAIRE')) %>%
-    # mutate(
-    #   Question = str_replace(Question,'BFI-10_[[:digit:]]+','BFI-10'),
-    #   Question = str_replace(Question,'FFA_[[:digit:]]+','FFA'),
-    #   Question = str_replace(Question,'(HADS_[AD]_[[:digit:]]{2})-[[:digit:]]','\\1'),
-    #   Question = str_replace(Question,'(OSRN)-[[:digit:]]{1,2}','\\1'),
-    #   # Question = str_replace(Question,'(PSQI_11)[abcd]','\\1a-d')),
-    #   # Question = str_replace(Question,'(PSQI_5)[abcdefghi]','\\1a-i'),
-    #   # Question = str_replace(Question,'(PSQI_)[78]','\\17-8'),
-    # ) %>%
+    filter(! Question %in% c('BEGIN QUESTIONNAIRE', 'END QUESTIONNAIRE'),
+           ! endsWith(Question,'quantised')) %>%
     group_by(Question,UniqueName) %>%
     group_split()
   
   w <- tibble()
   for (d1 in dd) {
-    # d1 <- d1 %>%
-      # mutate(
-      #   Question = str_replace(Question,'BFI-10_[[:digit:]]+','BFI-10'),
-      #   Question = str_replace(Question,'FFA_[[:digit:]]+','FFA'),
-      #   Question = str_replace(Question,'(HADS_[AD]_[[:digit:]]{2})-[[:digit:]]','\\1'),
-      #   Question = str_replace(Question,'(OSRN)-[[:digit:]]{1,2}','\\1'),
-      #   # Question = str_replace(Question,'(PSQI_11)[abcd]','\\1a-d')),
-      #   # Question = str_replace(Question,'(PSQI_5)[abcdefghi]','\\1a-i'),
-      #   # Question = str_replace(Question,'(PSQI_)[78]','\\17-8'),
-      # )
-    w <- expand_grid(experimentID = d1$experimentID,UniqueName = d1$UniqueName,Question = d1$Question, Response = unique(filter(tmp,`Question Key` == d1$Question)$`Response`))%>%
-      filter(!is.na(Response)) %>%
+    w <- expand_grid(experimentID = d1$experimentID,
+                     UniqueName = d1$UniqueName,
+                     Question = d1$Question, 
+                     Response = unique(filter(tmp,`Question Key` == d1$Question)$`Response`)
+                     )%>%
+      filter(!is.na(Response),
+             is.na(as.numeric(Response))) %>% # keeping only responses that are not numeric
       arrange(Response) %>%
       bind_rows(w)
   }
@@ -87,14 +82,13 @@ for (f in fs) {
     bind_rows(Responses)
 }
 
-Responses %>% group_by(UniqueName, Question) %>% group_keys() %>% left_join(TranslateOrMap,by=c('UniqueName','Question')) %>%
-  write_csv(file.path(params$rootdir,'_TranslateOrMap.csv'))
-
-# Demographics <- filter(Responses,UniqueName == "S1_Demographics")
+Responses %>% 
+  group_by(UniqueName, Question) %>% 
+  group_keys() %>% 
+  left_join(TranslateOrMap,by=c('UniqueName','Question')) %>%
+  write_csv(file.path(params$rootdir,'_TranslateOrMap.csv'),na = '')
 
 splitResponses <- Responses %>%
-  # filter(UniqueName != "S1_Demographics") %>%
-  filter(is.na(as.numeric(Response))) %>% # keeping only responses that are not numeric
   group_by(UniqueName,Question) %>%
   group_split()
 
@@ -138,25 +132,6 @@ ToTranslate %>%
   arrange(experimentID, UniqueName, Question) %>%
   write_csv(f <- file.path(params$rootdir,'ToTranslateSheetQuestionnaire.csv'),na='')
 
-# if (nrow(Demographics) != 0) {
-#   Demographics <- Demographics %>%
-#     filter(is.na(as.numeric(Response))) %>%
-#     group_by(experimentID,UniqueName,Question) %>%
-#     mutate(n=1:n()) %>%
-#     pivot_wider(names_from = experimentID,values_from = Response) %>%
-#     select(-n)
-# } else {
-#   Demographics <- Demographics %>%
-#     pivot_wider(names_from = experimentID,values_from = Response)
-#   
-# }
-# Demographics %>%
-#   mutate(TranslatedResponse = NA) %>%
-#   pivot_longer(matches('[[:digit:]]{5}_.*'),names_to = 'experimentID',values_to = 'Response') %>%
-#   filter(!is.na(Response)) %>%
-#   select(experimentID, UniqueName, Question,Response, TranslatedResponse, everything()) %>%
-#   arrange(experimentID) %>%
-  # write_csv(f <- file.path(params$rootdir,'ToTranslateSheetDemographics.csv'),na='')
 ```
 
 ### For tasks, list all responses
