@@ -10,7 +10,7 @@ output:
     df_print: paged
     toc: yes
 params:
-  experimentID: 16095
+  experimentID: [15096,16303]
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 ---
 
