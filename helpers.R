@@ -32,7 +32,7 @@ Q_cols <- cols(`Participant Private ID` = col_factor())
 Q_read <- function(datafiles) {
   orig <- tibble()
   for (f in datafiles) {
-    orig <- read_csv(f,col_types = cols()) %>%
+    orig <- read_csv(f,col_types = cols(.default = col_character())) %>%
       mutate(File = basename(f))%>%
       bind_rows(orig)
   }
