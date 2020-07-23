@@ -1,0 +1,82 @@
+---
+title: "All subjects count"
+params:
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+---
+
+```{r, message=F}
+library(tidyverse)
+source('helpers.R')
+
+```
+
+```{r}
+fs <- list.files(params$rootdir,pattern = 'S._.*csv',recursive = T,full.names = T) %>%
+   tibble(fname=.) %>%
+   filter(! str_detect(fname,'processed')) %>%
+   # slice(200:350) %>%
+   group_by(fname) %>%
+   group_split() 
+
+d <- tibble()
+for (f in fs) {
+  
+  suppressWarnings(
+    {tmp <- read_csv(f$fname,col_types = cols(),n_max = 1)
+    switch(str_match(unique(tmp$`Tree Node Key`),'questionnaire|task'),
+                questionnaire = {
+                  tmp <- Q_read(f$fname)
+                  N <- Q_Nsuj(tmp)},
+                task = {
+                  tmp <- T_read(f$fname)
+                  N <- T_Nsuj(tmp)}
+    ) 
+    eid <- N$`Experiment ID`
+    experimentName = filter(experimentIDs,`Experiment ID` %in% eid)$ExperimentName
+    d <- N %>% ungroup() %>%
+      mutate(experimentName = experimentName,
+             mainexperimentName = paste0('total_',str_replace(experimentName,'(.*?)_.*','\\1')),
+             taskName = str_replace(File,'(S._.*).csv','\\1')
+      ) %>%
+      select(-File) %>%
+      bind_rows(d)
+  })
+} 
+
+d <- d %>% unite('experimentID',`Experiment ID`,experimentName)
+
+  
+(d %>% select(-mainexperimentName) %>%
+    pivot_wider(names_from = experimentID,values_from = N) %>%
+    left_join(d %>% 
+                group_by(mainexperimentName,taskName) %>%
+                summarize(N = sum(N)) %>%
+                pivot_wider(names_from = mainexperimentName,values_from = N)) %>%
+    write_csv(file.path(params$rootdir,'SubjectsCount.csv'), na='')
+)
+  
+
+```
+
+```{r}
+
+d <- read_csv(file.path(params$rootdir,'SubjectsCount.csv'),col_types = cols(taskName=col_factor(),.default = col_integer())) %>%
+  pivot_longer(-taskName,names_to = 'experimentID', values_to = 'N') %>%
+  mutate(experimendID = as.factor(experimentID))
+
+  ggplot(d,aes(x=taskName,y=N,col=experimentID,group=experimentID)) +
+  geom_point() + 
+  geom_line() +
+  theme(axis.text.x = element_text(angle=30, hjust = 1 ))
+
+```
+ 
