@@ -18,6 +18,7 @@ library(tidyverse)
 source('helpers.R')
 TranslateOrMap <- read_csv(file.path(params$rootdir,'_TranslateOrMap.csv'))
 ToTranslateQ <- read_csv(file.path(params$rootdir,'ToTranslateSheetQuestionnaire.csv'),col_types = cols(.default = col_character()))
+ToTranslateT <- read_csv(file.path(params$rootdir,'ToTranslateSheetTask.csv'),col_types = cols(.default = col_character()))
 ToMapQ <- read_csv(file.path(params$rootdir,'ToMapSheetQuestionnaire.csv'),col_types = cols(.default = col_character()))
 ToMapT <- read_csv(file.path(params$rootdir,'ToMapSheetTask.csv'),col_types = cols(.default = col_character()))
 ```
@@ -126,7 +127,7 @@ ToMap %>% select(UniqueName, Question, `14926_EN-GB`,everything()) %>%
   write_csv(f <- file.path(params$rootdir,'ToMapSheetQuestionnaire.csv'),na='')
 
 ToTranslate %>% 
-  add_row(UniqueName='S1_IQ', Question='IQ_4-text', experimentID='15096-16303_FR',Response='toto', .before = 17) %>%
+  # add_row(UniqueName='S1_IQ', Question='IQ_4-text', experimentID='15096-16303_FR',Response='toto', .before = 17) %>%
   filter(!is.na(Response)) %>%
   full_join(ToTranslateQ) %>%
   arrange(experimentID, UniqueName, Question) %>%
@@ -146,7 +147,8 @@ fs <- list.files(params$rootdir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names
   group_split()
 
 
-d <- tibble()
+dmap <- tibble()
+dtrans <- tibble()
 for (f in fs) {
   # get column names into a column
   # print(f)
@@ -158,10 +160,10 @@ for (f in fs) {
     mutate(UniqueName = unique(f$UniqueName)) %>%
     ungroup()
   
-  tmp <- tmp %>% select(-(1:display), `experimentID`, UniqueName, -`Experiment ID`,-starts_with('order-'), -starts_with('checkpoint-'), -starts_with('branch-') )
+  tmp <- tmp %>% select(-(1:`Task Version`), `experimentID`, UniqueName, -`Experiment ID`,-starts_with('order-'), -starts_with('checkpoint-'), -starts_with('branch-') )
   if (ncol(tmp) == 2) next
   
-  d <- tmp %>%
+  dmap <- tmp %>%
     mutate_all(as.character) %>%
     pivot_longer(cols =-c(experimentID,UniqueName),names_to = 'Field',values_to = 'Value') %>%
     filter(Value != 'NA',
@@ -169,15 +171,37 @@ for (f in fs) {
     group_by(Field,experimentID,UniqueName) %>%
     distinct() %>%
     arrange(experimentID,UniqueName,Field,Value) %>%
-    bind_rows(d) 
+    bind_rows(dmap) 
+  
+  dtrans <- tmp %>%
+    mutate_all(as.character) %>%
+    pivot_longer(cols =-c(experimentID,UniqueName),names_to = 'Field',values_to = 'Value') %>%
+    filter(Value != 'NA',
+           Field %in% c('Response'),
+           !str_detect(UniqueName,'DelayDiscount')) %>%
+    distinct() %>%
+    group_by(Field,experimentID,UniqueName) %>%
+    arrange(experimentID,UniqueName,Field,Value) %>%
+    bind_rows(dtrans) 
 }
 
-Values <- d %>%
+ToMapT <- dmap %>%
   filter(is.na(as.numeric(Value))) %>%
   group_by(experimentID,UniqueName,Field) %>%
   mutate(n=1:n()) %>%
   pivot_wider(names_from = experimentID,values_from = Value) %>%
   select(-n) %>%
   write_csv(f <- file.path(params$rootdir,'ToMapSheetTask.csv'),na = '')
+
+ToTranslateTT <- dtrans %>% ungroup() %>%
+  # add_row(experimentID = '14926_EN-GB',UniqueName='S1_1back',Field = 'ANSWER',Value = 'Up',.before=10) %>%
+  filter(is.na(as.numeric(Value))) %>%
+  mutate(Translated = NA) %>%
+  distinct() %>%
+  left_join(ToTranslateT,by = c('experimentID','UniqueName','Field','Value')) %>%
+  unite(col = Translated,Translated.y, Translated.x,sep = ' ',na.rm=T) %>%
+  mutate(Translated = str_remove(Translated,'NA')) %>% 
+  arrange(experimentID, UniqueName, Field) %>%
+  write_csv(f <- file.path(params$rootdir,'ToTranslateSheetTask.csv'),na='')
 
 ```
