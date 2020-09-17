@@ -1,0 +1,2428 @@
+---
+title: "The effect of attention and working memory on the estimation of elapsed time"
+author: "Ignacio Polti"
+date: "July 23, 2018"
+output: html_document
+---
+
+
+# Libraries
+***
+```{r}
+library(ggplot2)
+library(grid)
+library(gridExtra)
+library(car)
+library(lme4)
+library(lmerTest)
+library(lmtest)
+library(betareg)
+library(fitdistrplus)
+library(multcomp)
+library(lsmeans)
+library(visreg)
+```
+<br><br>
+
+
+# Paths
+```{r}
+DT_Fdbck_path <- file.path("home.ansatt.ntnu.no",
+                           "ignatiop",
+                           "Documents",
+                           "UNICOG",
+                           "M1_thesis",
+                           "Data_original_sample")
+ST_Fdbck_path <- file.path("home.ansatt.ntnu.no",
+                           "ignatiop",
+                           "Documents",
+                           "UNICOG",
+                           "M1_thesis",
+                           "Data_original_sample")
+DT_NoFdbck_path <- file.path("home.ansatt.ntnu.no",
+                             "ignatiop",
+                             "Documents",
+                             "UNICOG",
+                             "M1_thesis",
+                             "Data_ctrl_sample")
+ST_NoFdbck_path <- file.path("home.ansatt.ntnu.no",
+                             "ignatiop",
+                             "Documents",
+                             "UNICOG",
+                             "M1_thesis",
+                             "Data_ctrl_sample")
+```
+<br><br>
+
+
+# Colorblind-friendly palettes
+***
+```{r}
+cbPalette <- c("#E69F00", "#56B4E9", "#009E73", "#F0E442",
+               "#0072B2", "#D55E00", "#CC79A7")
+cbPalette2 <- c("#0072B2", "#CC79A7")
+cbPalette2_v2 <- c("#66c2a4", "#fc8d59")
+cbPalette3 <- c("#009E73", "#0072B2", "#CC79A7")
+cbPalette4 <- c("#E69F00", "#56B4E9", "#009E73", "#D55E00", "#CC79A7")
+
+qualiPalette3 <- c("#66c2a5", "#fc8d62", "#8da0cb")
+qualiPalette3_v2 <- c("#a6cee3", "#1f78b4", "#b2df8a")
+qualiPalette3_v3 <- c("#fc8d59", "#ffffbf", "#91bfdb")
+
+cbPaletteCTRL_DT <- c(rep("#d7b5d8", 5), "#bdc9e1", rep("#df65b0", 5),
+                      "#74a9cf", rep("#ce1256", 5), "#0570b0")
+
+cbPaletteST0back <- c("#0072B2", "#bdbdbd")
+
+```
+<br><br>
+
+
+# Functions
+***
+## Extract plot legend
+```{r}
+get_legend <- function(myggplot){
+  tmp <- ggplot_gtable(ggplot_build(myggplot))
+  leg <- which(sapply(tmp$grobs, function(x) x$name) == "guide-box")
+  legend <- tmp$grobs[[leg]]
+  return(legend)}
+```
+## Load & merge data files
+```{r}
+# == Load all Dual Task data files =============================================
+# ==============================================================================
+multmerge_DT = function(mypath){
+  filenames = list.files(path = mypath,
+                         full.names = TRUE,
+                         pattern = 'DT')
+  datalist = lapply(filenames, function(x){read.table(file = x,
+                                                      header = TRUE)})
+  Reduce(function(x, y) {merge(x, y, all = TRUE)}, datalist)}
+
+# == Load all Single Task data files ===========================================
+# ==============================================================================
+multmerge_ST = function(mypath){
+  filenames = list.files(path = mypath,
+                         full.names = TRUE,
+                         pattern = 'ST')
+  datalist = lapply(filenames, function(x){read.table(file = x,
+                                                      header = TRUE)})
+  Reduce(function(x,y) {merge(x, y, all = TRUE)}, datalist)}
+```
+## Standard Error of the Mean (SEM)
+```{r}
+sem <- function(x){sd(x)/sqrt(length(x))}
+```
+## Outliers removal
+```{r}
+remove_outliers <- function(x, na.rm = TRUE, ...) {
+qnt <- quantile(x, probs = c(.25, .75), na.rm = na.rm, ...)
+H <- 1.5 * IQR(x, na.rm = na.rm)
+Y <- x
+Y[x < (qnt[1] - H)] <- NA
+Y[x > (qnt[2] + H)] <- NA
+Y}
+```
+## A' (Signal Detection Theory)
+```{r}
+A_prime <- function(H, F) {
+  if (F <= .5 & H >= .5)
+  {
+    a <- .75 + (H - F)/4 - F*(1 - H)
+  } else if (F <= H & H <= .5)
+  {
+    a <- .75 + (H - F)/4 - F/(4*H)
+  } else {
+      a <- .75 + (H - F)/4 - (1 - H)/(4*(1 - F))
+  } 
+  return(a)}
+```
+## B'' (Signal Detection Theory)
+```{r}
+Bppd <- function(H, F) {
+  if (F <= .5 & H >= .5)
+  {
+    b <- (5 - 4*H)/(1 + 4*F)
+  }
+  else if (F <= H & H <= .5)
+  {
+    b <- (H^2 + H)/(H^2 + F)
+  } else {
+      b <- ((1 - F)^2 + (1 - H)/(1 - F^2) + (1 - F))
+  } 
+  return(b)}
+```
+## d' (Signal Detection Theory)
+```{r}
+dprime <- function(H, F) {qnorm(H) - qnorm(F)}
+```
+## Beta (Signal Detection Theory)
+```{r}
+Beta <- function(H, F) {zhr <- qnorm(H)
+```
+<br><br>
+
+
+# Data cleansing
+***
+```{r}
+# == Dataset construction ======================================================
+# ==============================================================================
+dataset_DT.Fdbck <- multmerge_DT(DT_Fdbck_path)
+dataset_ST.Fdbck <- multmerge_ST(ST_Fdbck_path)
+dataset_DT.NoFdbck <- multmerge_DT(DT_NoFdbck_path)
+dataset_ST.NoFdbck <- multmerge_ST(ST_NoFdbck_path)
+
+# == Dual Task | Feedback trials ===============================================
+# ==============================================================================
+# Change factor's names
+colnames(dataset_DT.Fdbck)[6] <- "INTERVAL"
+colnames(dataset_DT.Fdbck)[12] <- "ESTIMATE"
+colnames(dataset_DT.Fdbck)[2] <- "SUBJ_ID"
+
+# Set specific columns as "factor" data types
+dataset_DT.Fdbck$Nro_SUBJ <- as.factor(dataset_DT.Fdbck$Nro_SUBJ)
+dataset_DT.Fdbck$RUN <- as.factor(dataset_DT.Fdbck$RUN)
+dataset_DT.Fdbck$BLOCK <- as.factor(dataset_DT.Fdbck$BLOCK)
+dataset_DT.Fdbck$BACK <- as.factor(dataset_DT.Fdbck$BACK)
+
+dataset_DT.Fdbck$INTERVAL <- dataset_DT.Fdbck$INTERVAL/1000
+dataset_DT.Fdbck$RT < -as.numeric(as.character(dataset_DT.Fdbck$RT))
+dataset_DT.Fdbck$ESTIMATE <- as.numeric(as.character(dataset_DT.Fdbck$ESTIMATE))
+dataset_DT.Fdbck$COUNTER <- NULL
+dataset_DT.Fdbck$STIM <- NULL
+dataset_DT.Fdbck$Norm_Est <- dataset_DT.Fdbck$ESTIMATE - dataset_DT.Fdbck$INTERVAL
+dataset_DT.Fdbck$INTERVAL <- as.factor(dataset_DT.Fdbck$INTERVAL)
+dataset_DT.Fdbck$COND <- "Fdbck"
+dataset_DT.Fdbck$COND <- as.factor(dataset_DT.Fdbck$COND)
+levels(dataset_DT.Fdbck$ANSWER)[levels(dataset_DT.Fdbck$ANSWER) == "None"] <- "CRej"
+dataset_DT.Fdbck$TRIAL <- gsub("T_ESTIMATE", "T_EST", dataset_DT.Fdbck$TRIAL)
+
+
+# == Single Task | Feedback trials =============================================
+# ==============================================================================
+# Change factor's names
+colnames(dataset_ST.Fdbck)[4] <- "INTERVAL"
+colnames(dataset_ST.Fdbck)[6] <- "ESTIMATE"
+colnames(dataset_ST.Fdbck)[2] <- "SUBJ_ID"
+
+dataset_ST.Fdbck$Nro_SUBJ <- as.factor(dataset_ST.Fdbck$Nro_SUBJ)
+dataset_ST.Fdbck$INTERVAL <- dataset_ST.Fdbck$INTERVAL/1000
+dataset_ST.Fdbck$RT <- as.numeric(as.character(dataset_ST.Fdbck$RT))
+dataset_ST.Fdbck$ESTIMATE <- as.numeric(as.character(dataset_ST.Fdbck$ESTIMATE))
+dataset_ST.Fdbck$Norm_Est <- dataset_ST.Fdbck$ESTIMATE - dataset_ST.Fdbck$INTERVAL
+dataset_ST.Fdbck$INTERVAL <- as.factor(dataset_ST.Fdbck$INTERVAL)
+dataset_ST.Fdbck$TRIAL <-  NULL
+dataset_ST.Fdbck$COND <- "Fdbck"
+dataset_ST.Fdbck$COND <- as.factor(dataset_ST.Fdbck$COND)
+dataset_ST.Fdbck$TASK <- "ST"
+dataset_ST.Fdbck$TASK <- as.factor(dataset_ST.Fdbck$TASK)
+dataset_ST.Fdbck <- dataset_ST.Fdbck[c('Nro_SUBJ', 'SUBJ_ID', 'TASK', 
+                                       'INTERVAL', 'RT', 'ESTIMATE',
+                                       'Norm_Est', 'COND')]
+
+
+# == Dual Task | No Feedback trials ============================================
+# ==============================================================================
+dataset_DT.NoFdbck$SEX[dataset_DT.NoFdbck$SEX == "FALSE"] <- "Female"
+dataset_DT.NoFdbck$SEX[dataset_DT.NoFdbck$SEX == "M"] <- "Male"
+colnames(dataset_DT.NoFdbck)[10] <- "INTERVAL"
+colnames(dataset_DT.NoFdbck)[16] <- "ESTIMATE"
+dataset_DT.NoFdbck$Nro_SUBJ <- as.factor(dataset_DT.NoFdbck$Nro_SUBJ)
+dataset_DT.NoFdbck$RUN <- as.factor(dataset_DT.NoFdbck$RUN)
+dataset_DT.NoFdbck$BLOCK <- as.factor(dataset_DT.NoFdbck$BLOCK)
+
+dataset_DT.NoFdbck$BACK <- as.factor(dataset_DT.NoFdbck$BACK)
+dataset_DT.NoFdbck$INTERVAL <- dataset_DT.NoFdbck$INTERVAL/1000
+dataset_DT.NoFdbck$ESTIMATE <- as.numeric(as.character(dataset_DT.NoFdbck$ESTIMATE))
+dataset_DT.NoFdbck$Norm_Est <- dataset_DT.NoFdbck$ESTIMATE - dataset_DT.NoFdbck$INTERVAL
+dataset_DT.NoFdbck$INTERVAL <- as.factor(dataset_DT.NoFdbck$INTERVAL)
+
+dataset_DT.NoFdbck$RT <- as.numeric(as.character(dataset_DT.NoFdbck$RT))
+dataset_DT.NoFdbck$COUNTER <- NULL
+dataset_DT.NoFdbck$TIME <- NULL
+dataset_DT.NoFdbck$DATE <- NULL
+dataset_DT.NoFdbck$AGE <- NULL
+dataset_DT.NoFdbck$STIM <- NULL
+dataset_DT.NoFdbck$COND <- "NoFdbck"
+dataset_DT.NoFdbck$COND <- as.factor(dataset_DT.NoFdbck$COND)
+
+# == Single Task | No Feedback trials ==========================================
+# ==============================================================================
+dataset_ST.NoFdbck$COUNTER <- NULL
+dataset_ST.NoFdbck$TIME <- NULL
+dataset_ST.NoFdbck$DATE <- NULL
+dataset_ST.NoFdbck$AGE <- NULL
+dataset_ST.NoFdbck$SEX[dataset_ST.NoFdbck$SEX == "FALSE"] <- "Female"
+dataset_ST.NoFdbck$SEX[dataset_ST.NoFdbck$SEX == "M"] <- "Male"
+colnames(dataset_ST.NoFdbck)[7] <- "INTERVAL"
+colnames(dataset_ST.NoFdbck)[12] <- "ESTIMATE"
+colnames(dataset_ST.NoFdbck)[6] <- "TASK"
+dataset_ST.NoFdbck$TASK <- "ST"
+dataset_ST.NoFdbck$Nro_SUBJ <- as.factor(dataset_ST.NoFdbck$Nro_SUBJ)
+dataset_ST.NoFdbck$RUN <- as.factor(dataset_ST.NoFdbck$RUN)
+dataset_ST.NoFdbck$BLOCK <- as.factor(dataset_ST.NoFdbck$BLOCK)
+dataset_ST.NoFdbck$TASK <- as.factor(dataset_ST.NoFdbck$TASK)
+dataset_ST.NoFdbck$INTERVAL <- dataset_ST.NoFdbck$INTERVAL/1000
+dataset_ST.NoFdbck$RT <- as.numeric(as.character(dataset_ST.NoFdbck$RT))
+dataset_ST.NoFdbck$ESTIMATE <- as.numeric(as.character(dataset_ST.NoFdbck$ESTIMATE))
+dataset_ST.NoFdbck$Norm_Est <- dataset_ST.NoFdbck$ESTIMATE - dataset_ST.NoFdbck$INTERVAL
+dataset_ST.NoFdbck$INTERVAL <- as.factor(dataset_ST.NoFdbck$INTERVAL)
+dataset_ST.NoFdbck$TRIAL <- NULL
+dataset_ST.NoFdbck$STIM <- NULL
+dataset_ST.NoFdbck$ANSWER <- NULL
+dataset_ST.NoFdbck$COND <- "NoFdbck"
+dataset_ST.NoFdbck$COND <- as.factor(dataset_ST.NoFdbck$COND)
+```
+<br><br>
+
+
+# Merge datasets by trial-type (DT / ST)
+***
+```{r}
+dataset_DT <- dataset_DT.NoFdbck
+dataset_DT$SEX <- NULL
+dataset_DT <- rbind(dataset_DT, dataset_DT.Fdbck)
+
+dataset_ST <- dataset_ST.NoFdbck
+dataset_ST$SEX <- NULL
+dataset_ST$RUN <- NULL
+dataset_ST$BLOCK <- NULL
+dataset_ST <- rbind(dataset_ST, dataset_ST.Fdbck)
+```
+<br><br>
+
+
+# Separate prospective / retrospective timing trials
+```{r}
+# == Retrospective timing ======================================================
+# ==============================================================================
+retrospectiveT_data <- subset(dataset_DT, RUN == 0 & BLOCK == 1)
+
+
+# == Prospective timing ========================================================
+# ==============================================================================
+prospectiveT_data <- subset(dataset_DT, RUN != 0 | BLOCK != 1)
+```
+<br><br>
+
+
+# n-back task Dependent Variables (DV)
+***
+## Signal Detection Theory (SDT): Hit Rate (HR) | False Alarm rate (FA)
+```{r}
+# == Pre-compute SDT variables =================================================
+# ==============================================================================
+nback_DV <- subset(prospectiveT_data, TRIAL != 'T_EST')
+nback_DV$ESTIMATE <- NULL
+nback_DV$Norm_Est <- NULL
+
+true_sbset <- subset(nback_DV, ANSWER == "True")
+miss_sbset <- subset(nback_DV, ANSWER == "Miss")
+false_sbset <- subset(nback_DV, ANSWER == "False")
+crej_sbset <- subset(nback_DV, ANSWER == "CRej")
+
+true.n <- aggregate(true_sbset$ANSWER,
+                    by = list(Nro_SUBJ = true_sbset$Nro_SUBJ,
+                              RUN = true_sbset$RUN,
+                              BLOCK = true_sbset$BLOCK,
+                              BACK = true_sbset$BACK,
+                              INTERVAL = true_sbset$INTERVAL,
+                              CONDITION = true_sbset$COND),
+                    drop = FALSE,
+                    length)
+
+miss.n <- aggregate(miss_sbset$ANSWER,
+                    by = list(Nro_SUBJ = miss_sbset$Nro_SUBJ,
+                              RUN = miss_sbset$RUN,
+                              BLOCK = miss_sbset$BLOCK,
+                              BACK = miss_sbset$BACK,
+                              INTERVAL = miss_sbset$INTERVAL,
+                              CONDITION = miss_sbset$COND),
+                    drop = FALSE,
+                    length)
+
+false.n <- aggregate(false_sbset$ANSWER,
+                     by = list(Nro_SUBJ = false_sbset$Nro_SUBJ,
+                               RUN = false_sbset$RUN,
+                               BLOCK = false_sbset$BLOCK,
+                               BACK = false_sbset$BACK,
+                               INTERVAL = false_sbset$INTERVAL,
+                               CONDITION = false_sbset$COND),
+                     drop = FALSE,
+                     length)
+
+crej.n <- aggregate(crej_sbset$ANSWER,
+                    by = list(Nro_SUBJ = crej_sbset$Nro_SUBJ,
+                              RUN = crej_sbset$RUN,
+                              BLOCK = crej_sbset$BLOCK,
+                              BACK = crej_sbset$BACK,
+                              INTERVAL = crej_sbset$INTERVAL,
+                              CONDITION = crej_sbset$COND),
+                    drop = FALSE,
+                    length)
+
+pre_sdt <- true.n
+names(pre_sdt)[names(pre_sdt) == "x"] <- "True"
+pre_sdt$Miss <- miss.n$x
+pre_sdt$False <- false.n$x
+pre_sdt$CRej <- crej.n$x
+pre_sdt[is.na(pre_sdt)] <- 0
+pre_sdt$H <- pre_sdt$True/(pre_sdt$True + pre_sdt$Miss)
+pre_sdt$F <- pre_sdt$False/(pre_sdt$False + pre_sdt$CRej)
+sdt_DV <- pre_sdt[complete.cases(pre_sdt[, 11]),]
+
+sdt_DV$H.crt <- sdt_DV$H
+sdt_DV$H.crt[(sdt_DV$H == 1)] <- 1 - (1/(2*sdt_DV$True[sdt_DV$H == 1]))
+sdt_DV$H.crt[(sdt_DV$H == 0)] <- 1/(2*sdt_DV$Miss[sdt_DV$H == 0])
+
+sdt_DV$F.crt <- sdt_DV$F
+sdt_DV$F.crt[(sdt_DV$F == 1)] <- 1 - (1/(2*sdt_DV$False[sdt_DV$F == 1]))
+sdt_DV$F.crt[(sdt_DV$F == 0)] <- 1/(2*sdt_DV$CRej[sdt_DV$F == 0])
+
+# A' and B'' calculation:
+
+#A' original calculation
+
+# A_prime<- function(H, F) {a<- 1/2 + ((H-F)*(1+H-F) / (4*H*(1-F)))
+# b<- 1/2 - ((F-H)*(1+F-H) / (4*F*(1-H)))
+# a[F>H]<-b[F>H]
+# a[F==H]<-.5
+# a}
+
+# Bppd <- function(H,F) {((1-H)*(1-F)-H*F) / ((1-H)*(1-F)+H+F)}
+
+
+#A' and b corrected calculation (Zhang & Mueller, 2005)
+
+
+zfar <- qnorm(F)
+exp(-zhr*zhr/2 + zfar*zfar/2)}
+
+sdt_DV$A_prime <- A_prime(sdt_DV$H.crt, sdt_DV$F.crt)
+sdt_DV$B_ppd <- Bppd(sdt_DV$H.crt, sdt_DV$F.crt)
+sdt_DV$d_prime <- dprime(sdt_DV$H.crt, sdt_DV$F.crt)
+sdt_DV$beta <- Beta(sdt_DV$H.crt, sdt_DV$F.crt)
+```
+
+## Response Time (RT)
+```{r}
+nback.rt <- subset(prospectiveT_data, TRIAL != 'T_EST')
+nback.rt$ESTIMATE <- NULL
+nback.rt$Norm_Est <- NULL
+
+# == Early responses (RT < 100) ================================================
+# ==============================================================================
+earlyRT.count.T <- subset(nback_DV, RT < 100 & ANSWER == 'True')
+earlyRT.count.F <- subset(nback_DV, RT < 100 & ANSWER == 'False')
+
+earlyRT.false <- aggregate(earlyRT.count.F$RT,
+                           by = list(BACK = earlyRT.count.F$BACK,
+                                     INTERVAL = earlyRT.count.F$INTERVAL,
+                                     CONDITION = earlyRT.count.F$COND),
+                           sd)
+earlyRT.false.n <- aggregate(earlyRT.count.F$RT,
+                             by = list(BACK = earlyRT.count.F$BACK,
+                                       INTERVAL = earlyRT.count.F$INTERVAL,
+                                       CONDITION = earlyRT.count.F$COND),
+                             length)
+names(earlyRT.false)[names(earlyRT.false) == "x"] <- "SD"
+earlyRT.false$LENGTH <- earlyRT.false.n$x
+
+# == Accurate target responses =================================================
+# ==============================================================================
+nback.rt.F <- subset(nback.rt, ANSWER == "False" & RT > 100)
+nback.rt.T <- subset(nback.rt, ANSWER == "True" & RT > 100)
+
+nback.rt.T <- aggregate(nback.rt.T$RT,
+                        by = list(Nro_SUBJ = nback.rt.T$Nro_SUBJ,
+                                  RUN = nback.rt.T$RUN,
+                                  BLOCK = nback.rt.T$BLOCK,
+                                  BACK = nback.rt.T$BACK,
+                                  INTERVAL = nback.rt.T$INTERVAL,
+                                  CONDITION = nback.rt.T$COND),
+                        mean)
+```
+
+## Merge SDT + RT DV
+```{r}
+nback.bhvr <- merge(nback.rt.T,
+                    sdt_DV,
+                    all = TRUE)
+names(nback.bhvr)[names(nback.bhvr) == "x"] <- "RT"
+```
+<br><br>
+
+
+# Behavioral measurements (Figure 1c)
+***
+## HR
+```{r}
+# == Pre-compute HR variables ==================================================
+# ==============================================================================
+HR.wmload.fdbck <- aggregate(nback.bhvr$H.crt,
+                             by = list(BACK = nback.bhvr$BACK,
+                                       COND = nback.bhvr$CONDITION),
+                             mean)
+HR.wmload.fdbck.sd <- aggregate(nback.bhvr$H.crt,
+                                by = list(BACK = nback.bhvr$BACK,
+                                          COND = nback.bhvr$CONDITION),
+                                sd)
+HR.wmload.fdbck.n <- aggregate(nback.bhvr$H.crt,
+                               by = list(BACK = nback.bhvr$BACK,
+                                         COND = nback.bhvr$CONDITION),
+                               length)
+names(HR.wmload.fdbck)[names(HR.wmload.fdbck) == "x"] <- "MEAN"
+HR.wmload.fdbck$SD <- HR.wmload.fdbck.sd$x
+HR.wmload.fdbck$N <- HR.wmload.fdbck.n$x
+HR.wmload.fdbck$SEM <- HR.wmload.fdbck$SD / sqrt(HR.wmload.fdbck$N)
+```
+### Sub-figure
+```{r}
+hr_noS_BW <- ggplot(data = HR.wmload.fdbck,
+                    aes(x = BACK, y = MEAN, group = COND)) + 
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+                width = .1, 
+                show.legend = FALSE,
+                size = 1) +
+  geom_line(aes(group = COND, linetype = COND), size = 1.5) +
+  geom_point(size = 2, 
+             show.legend = FALSE) +
+  labs(x = "Working Memory load", 
+       y = "Hit Rate") +
+  scale_x_discrete(limits = c("0", "1", "2", "3"), 
+                   labels = c("0", "1", "2", "3")) +
+  scale_y_continuous(breaks = seq(from = .3, to = 1, by = .1)) +
+  expand_limits(y = c(.3, 1)) +
+  theme_classic() +
+  theme(legend.position = c(.25, .1),
+        legend.title = element_text(face = "bold", size = 18), 
+        legend.text = element_text(size = 15),
+        axis.line.x = element_line(color = "black", size = .5),
+        axis.line.y = element_line(color = "black", size = .5),
+        plot.title = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18)) +
+  scale_linetype_manual(values = c(1, 3),
+                        name = "Condition",
+                        labels = c("No Feedback", "Feedback"))
+```
+
+## FA
+```{r}
+# == Pre-compute FA variables ==================================================
+# ==============================================================================
+FA.wmload.fdbck <- aggregate(nback.bhvr$F.crt,
+                             by = list(BACK = nback.bhvr$BACK,
+                                       COND = nback.bhvr$CONDITION),
+                             mean)
+FA.wmload.fdbck.sd <- aggregate(nback.bhvr$F.crt,
+                                by = list(BACK = nback.bhvr$BACK,
+                                          COND = nback.bhvr$CONDITION),
+                                sd)
+FA.wmload.fdbck.n <- aggregate(nback.bhvr$F.crt,
+                               by = list(BACK = nback.bhvr$BACK,
+                                         COND = nback.bhvr$CONDITION),
+                               length)
+names(FA.wmload.fdbck)[names(FA.wmload.fdbck) == "x"] <- "MEAN"
+FA.wmload.fdbck$SD <- FA.wmload.fdbck.sd$x
+FA.wmload.fdbck$N <- FA.wmload.fdbck.n$x
+FA.wmload.fdbck$SEM <- FA.wmload.fdbck$SD / sqrt(FA.wmload.fdbck$N)
+```
+### Sub-figure
+```{r}
+fa_noS_BW <- ggplot(data = FA.wmload.fdbck,
+                    aes(x = BACK, y = MEAN, group = COND)) + 
+  geom_errorbar(aes(ymin = MEAN - SEM,
+                    ymax = MEAN + SEM),
+                width = .1,
+                size = 1) +
+  geom_line(aes(group = COND, linetype = COND), size = 1.5) +
+  geom_point(size = 2) +
+  labs(x = "Working Memory load", 
+       y = "False Alarm Rate") +
+  scale_x_discrete(limits = c("0", "1", "2", "3"), 
+                   labels = c("0", "1", "2", "3")) +
+  scale_y_continuous(breaks = seq(from = 0, to = .08, by = .01)) + 
+  expand_limits(y = c(0, .08)) +
+  theme_classic() +
+  theme(legend.position = "none",
+        legend.title = element_text(face = "bold", size = 18), 
+        legend.text = element_text(size = 15),
+        axis.line.x = element_line(color = "black", size = .5),
+        axis.line.y = element_line(color = "black", size = .5),
+        plot.title = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18)) +
+  scale_linetype_manual(values = c(1, 3))
+```
+
+## RT
+```{r}
+# == Pre-compute RT variables ==================================================
+# ==============================================================================
+pre_RT.wmload.fdbck <- nback.bhvr[complete.cases(nback.bhvr[, 7]),]
+RT.wmload.fdbck <- aggregate(pre_RT.wmload.fdbck$RT,
+                             by = list(BACK = pre_RT.wmload.fdbck$BACK,
+                                       COND = pre_RT.wmload.fdbck$CONDITION),
+                             mean)
+RT.wmload.fdbck.sd <- aggregate(pre_RT.wmload.fdbck$RT,
+                                by = list(BACK = pre_RT.wmload.fdbck$BACK,
+                                          COND = pre_RT.wmload.fdbck$CONDITION),
+                                sd)
+RT.wmload.fdbck.n <- aggregate(pre_RT.wmload.fdbck$RT,
+                               by = list(BACK = pre_RT.wmload.fdbck$BACK,
+                                         COND = pre_RT.wmload.fdbck$CONDITION),
+                               length)
+names(RT.wmload.fdbck)[names(RT.wmload.fdbck) == "x"] <- "MEAN"
+RT.wmload.fdbck$SD <- RT.wmload.fdbck.sd$x
+RT.wmload.fdbck$N <- RT.wmload.fdbck.n$x
+RT.wmload.fdbck$SEM <- RT.wmload.fdbck$SD / sqrt(RT.wmload.fdbck$N)
+```
+## Sub-figure
+```{r}
+pd1 <- position_dodge(0.1)
+rt_noS_BW <- ggplot(data = RT.wmload.fdbck,
+                    aes(x = BACK,
+                        y = MEAN,
+                        group = COND)) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM), 
+                width = .1,  
+                show.legend = FALSE,
+                size = 1) +
+  geom_line(aes(group = COND, linetype = COND), size = 1.5) +
+  geom_point(size = 2) +
+  labs(x = "Working Memory load", 
+       y = "Mean Reaction Time (ms)") +
+  scale_x_discrete(limits = c("0", "1", "2", "3"), 
+                   labels = c("0", "1", "2", "3")) +
+  theme_classic() +
+  theme(legend.title = element_text(face = "bold", size = 18), 
+        legend.text = element_text(size = 15), 
+        legend.position = "none",
+        plot.title = element_text(size = 18, face = "bold"),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18)) +
+  scale_y_continuous(breaks = seq(from = 400, to = 700, by = 30), 
+                     limits = c(400, 700)) +
+  scale_linetype_manual(values = c(1, 3))
+```
+
+## Joint figure
+```{r}
+f0 <- grid.arrange(hr_noS_BW, fa_noS_BW, rt_noS_BW,
+                   ncol = 3,
+                   nrow = 1, 
+                   widths = c(.5, .5, .5))
+
+# Save image
+ggsave(f0,
+       file = "D:/M1_thesis/analysis/f0.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# Subjective duration estimation: Outliers removal
+***
+```{r}
+# == ST | SUBJECTIVE DURATION ==================================================
+# ==============================================================================
+clean_ST.data <- dataset_ST
+
+clean_ST.data$ESTIMATE <- remove_outliers(dataset_ST$ESTIMATE)
+clean_ST.data <- clean_ST.data[complete.cases(clean_ST.data[, 6]),]
+clean_ST.data$RT <- remove_outliers(clean_ST.data$RT)
+clean_ST.data <- clean_ST.data[complete.cases(clean_ST.data[, 5]),]
+
+# == ST | SUBJECTIVE DURATION DEVIATION ========================================
+# ==============================================================================
+clean_STdev.data <- dataset_ST
+
+clean_STdev.data$Norm_Est <- remove_outliers(dataset_ST$Norm_Est)
+clean_STdev.data <- clean_STdev.data[complete.cases(clean_STdev.data[, 7]),]
+clean_STdev.data$RT <- remove_outliers(clean_STdev.data$RT)
+clean_STdev.data <- clean_STdev.data[complete.cases(clean_STdev.data[, 5]),]
+
+# == DT | SUBJECTIVE DURATION ==================================================
+# ==============================================================================
+clean_DT.Time_data <- subset(prospectiveT_data, TRIAL == "T_EST")
+clean_DT.data <- clean_DT.Time_data
+
+clean_DT.data$ESTIMATE <- remove_outliers(clean_DT.Time_data$ESTIMATE)
+clean_DT.data <- clean_DT.data[complete.cases(clean_DT.data[, 10]),]
+clean_DT.data$RT <- remove_outliers(clean_DT.data$RT)
+clean_DT.data <- clean_DT.data[complete.cases(clean_DT.data[, 9]),]
+
+# == DT | SUBJECTIVE DURATION DEVIATION ========================================
+# ==============================================================================
+clean_DTdev.Time_data <- subset(prospectiveT_data, TRIAL == "T_EST")
+clean_DTdev.data <- clean_DTdev.Time_data
+
+clean_DTdev.data$Norm_Est <- remove_outliers(clean_DTdev.Time_data$Norm_Est)
+clean_DTdev.data <- clean_DTdev.data[complete.cases(clean_DTdev.data[, 11]),]
+clean_DTdev.data$RT <- remove_outliers(clean_DTdev.data$RT)
+clean_DTdev.data <- clean_DTdev.data[complete.cases(clean_DTdev.data[, 9]),]
+```
+<br><br>
+
+
+# Subjective duration deviation x Feedback x WM load
+***
+```{r}
+# == ST | WM load x Target Duration x Feedback =================================
+# ==============================================================================
+clean_STdev.data_norm <- clean_STdev.data
+names(clean_STdev.data_norm)[names(clean_STdev.data_norm) == "TASK"] <- "WMLOAD"
+clean_STdev_ag <- aggregate(clean_STdev.data_norm$Norm_Est,
+                            by = list(WMLOAD = clean_STdev.data_norm$WMLOAD,
+                                      INTERVAL = clean_STdev.data_norm$INTERVAL, 
+                                      COND = clean_STdev.data_norm$COND), mean)
+clean_STdev_ag.x <- aggregate(clean_STdev.data_norm$Norm_Est,
+               by = list(WMLOAD = clean_STdev.data_norm$WMLOAD,
+                         INTERVAL = clean_STdev.data_norm$INTERVAL,
+                         COND = clean_STdev.data_norm$COND), median)
+clean_STdev_ag.y <- aggregate(clean_STdev.data_norm$Norm_Est,
+               by = list(WMLOAD = clean_STdev.data_norm$WMLOAD, 
+                         INTERVAL = clean_STdev.data_norm$INTERVAL, 
+                         COND = clean_STdev.data_norm$COND), sd)
+clean_STdev_ag.z <- aggregate(clean_STdev.data_norm$Norm_Est,
+               by = list(WMLOAD = clean_STdev.data_norm$WMLOAD, 
+                         INTERVAL = clean_STdev.data_norm$INTERVAL,
+                         COND = clean_STdev.data_norm$COND), length)
+
+names(clean_STdev_ag)[names(clean_STdev_ag) == "x"] <- "MEAN"
+clean_STdev_ag$MEDIAN <- clean_STdev_ag.x$x
+clean_STdev_ag$SD <- clean_STdev_ag.y$x
+clean_STdev_ag$N <- clean_STdev_ag.z$x
+clean_STdev_ag$SEM <- clean_STdev_ag$SD / sqrt(clean_STdev_ag$N)
+
+# == DT | WM load x Target Duration x Feedback =================================
+# ==============================================================================
+clean_DTdev_ag <- aggregate(clean_DTdev.data$Norm_Est,
+                            by = list(WMLOAD = clean_DTdev.data$BACK,
+                                      INTERVAL = clean_DTdev.data$INTERVAL, 
+                                      COND = clean_DTdev.data$COND), mean)
+clean_DTdev_ag.x <- aggregate(clean_DTdev.data$Norm_Est,
+               by = list(WMLOAD = clean_DTdev.data$BACK,
+                         INTERVAL = clean_DTdev.data$INTERVAL,
+                         COND = clean_DTdev.data$COND), median)
+clean_DTdev_ag.y <- aggregate(clean_DTdev.data$Norm_Est,
+               by = list(WMLOAD = clean_DTdev.data$BACK, 
+                         INTERVAL = clean_DTdev.data$INTERVAL, 
+                         COND = clean_DTdev.data$COND), sd)
+clean_DTdev_ag.z <- aggregate(clean_DTdev.data$Norm_Est,
+               by = list(WMLOAD = clean_DTdev.data$BACK, 
+                         INTERVAL = clean_DTdev.data$INTERVAL,
+                         COND = clean_DTdev.data$COND), length)
+
+names(clean_DTdev_ag)[names(clean_DTdev_ag) == "x"] <- "MEAN"
+clean_DTdev_ag$MEDIAN <- clean_DTdev_ag.x$x
+clean_DTdev_ag$SD <- clean_DTdev_ag.y$x
+clean_DTdev_ag$N <- clean_DTdev_ag.z$x
+clean_DTdev_ag$SEM <- clean_DTdev_ag$SD / sqrt(clean_DTdev_ag$N)
+
+# == Bind ST | DT ==============================================================
+# ==============================================================================
+clean_ST.DTdev_data <- rbind(clean_STdev_ag, clean_DTdev_ag)
+clean_ST.DTdev_data$WMLOAD <- factor(clean_ST.DTdev_data$WMLOAD,
+                                     levels = c("ST", "0", "1", "2", "3"))
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+
+
+# == ST | WM load x Target Duration ============================================
+# ==============================================================================
+clean_STdev.data_norm2 <- clean_STdev.data
+names(clean_STdev.data_norm2)[names(clean_STdev.data_norm2) == "TASK"] <- "WMLOAD"
+clean_STdev_ag2 <- aggregate(clean_STdev.data_norm2$Norm_Est,
+                             by = list(WMLOAD = clean_STdev.data_norm2$WMLOAD,
+                                       INTERVAL = clean_STdev.data_norm2$INTERVAL),
+                             mean)
+clean_STdev_ag2.x <- aggregate(clean_STdev.data_norm2$Norm_Est,
+                               by = list(WMLOAD = clean_STdev.data_norm2$WMLOAD,
+                                         INTERVAL = clean_STdev.data_norm2$INTERVAL),
+                               median)
+clean_STdev_ag2.y <- aggregate(clean_STdev.data_norm2$Norm_Est,
+                               by = list(WMLOAD = clean_STdev.data_norm2$WMLOAD,
+                                         INTERVAL = clean_STdev.data_norm2$INTERVAL),
+                               sd)
+clean_STdev_ag2.z <- aggregate(clean_STdev.data_norm2$Norm_Est,
+                               by = list(WMLOAD = clean_STdev.data_norm2$WMLOAD,
+                                         INTERVAL = clean_STdev.data_norm2$INTERVAL),
+                               length)
+
+names(clean_STdev_ag2)[names(clean_STdev_ag2) == "x"] <- "MEAN"
+clean_STdev_ag2$MEDIAN <- clean_STdev_ag2.x$x
+clean_STdev_ag2$SD <- clean_STdev_ag2.y$x
+clean_STdev_ag2$N <- clean_STdev_ag2.z$x
+clean_STdev_ag2$SEM <- clean_STdev_ag2$SD / sqrt(clean_STdev_ag2$N)
+
+# == DT | WM load x Target Duration ============================================
+# ==============================================================================
+clean_DTdev_ag1 <- clean_DTdev.data
+clean_DTdev_ag1$BACK <- "DT"
+clean_DTdev_ag1$BACK <- as.factor(clean_DTdev_ag1$BACK)
+clean_DTdev_ag2 <- aggregate(clean_DTdev_ag1$Norm_Est,
+                             by = list(WMLOAD = clean_DTdev_ag1$BACK,
+                                       INTERVAL = clean_DTdev_ag1$INTERVAL), 
+                             mean)
+clean_DTdev_ag2.x <- aggregate(clean_DTdev_ag1$Norm_Est,
+                               by = list(WMLOAD = clean_DTdev_ag1$BACK,
+                                         INTERVAL = clean_DTdev_ag1$INTERVAL),
+                               median)
+clean_DTdev_ag2.y <- aggregate(clean_DTdev_ag1$Norm_Est,
+                               by = list(WMLOAD = clean_DTdev_ag1$BACK, 
+                                         INTERVAL = clean_DTdev_ag1$INTERVAL),
+                               sd)
+clean_DTdev_ag2.z <- aggregate(clean_DTdev_ag1$Norm_Est,
+                               by = list(WMLOAD = clean_DTdev_ag1$BACK, 
+                                         INTERVAL = clean_DTdev_ag1$INTERVAL), 
+                               length)
+
+names(clean_DTdev_ag2)[names(clean_DTdev_ag2) == "x"] <- "MEAN"
+clean_DTdev_ag2$MEDIAN <- clean_DTdev_ag2.x$x
+clean_DTdev_ag2$SD <- clean_DTdev_ag2.y$x
+clean_DTdev_ag2$N <- clean_DTdev_ag2.z$x
+clean_DTdev_ag2$SEM <- clean_DTdev_ag2$SD / sqrt(clean_DTdev_ag2$N)
+
+# == Bind ST | DT ==============================================================
+# ==============================================================================
+clean_ST.DTdev_data2 <- rbind(clean_STdev_ag2, clean_DTdev_ag2)
+clean_ST.DTdev_data2$WMLOAD <- factor(clean_ST.DTdev_data2$WMLOAD,
+                                      levels = c("ST", "DT"))
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = 
+
+
+# == ST vs DT[0-back] | DEV DATA ===============================================
+# ==============================================================================
+clean_0back.dev_ag3 <- subset(clean_DTdev.data, BACK == "0")
+clean_0back_ag4 <- aggregate(clean_0back.dev_ag3$Norm_Est,
+                             by = list(WMLOAD = clean_0back.dev_ag3$BACK,
+                                       INTERVAL = clean_0back.dev_ag3$INTERVAL), 
+                             mean)
+clean_0back_ag4.x <- aggregate(clean_0back.dev_ag3$Norm_Est,
+                               by = list(WMLOAD = clean_0back.dev_ag3$BACK,
+                                         INTERVAL = clean_0back.dev_ag3$INTERVAL),
+                               median)
+clean_0back_ag4.y <- aggregate(clean_0back.dev_ag3$Norm_Est,
+                               by = list(WMLOAD = clean_0back.dev_ag3$BACK, 
+                                         INTERVAL = clean_0back.dev_ag3$INTERVAL),
+                               sd)
+clean_0back_ag4.z <- aggregate(clean_0back.dev_ag3$Norm_Est,
+                               by = list(WMLOAD = clean_0back.dev_ag3$BACK, 
+                                         INTERVAL = clean_0back.dev_ag3$INTERVAL), 
+                               length)
+
+names(clean_0back_ag4)[names(clean_0back_ag4) == "x"] <- "MEAN"
+clean_0back_ag4$MEDIAN <- clean_0back_ag4.x$x
+clean_0back_ag4$SD <- clean_0back_ag4.y$x
+clean_0back_ag4$N <- clean_0back_ag4.z$x
+clean_0back_ag4$SEM <- clean_0back_ag4$SD / sqrt(clean_0back_ag4$N)
+
+# == Bind ST | DT[0-back] ======================================================
+# ==============================================================================
+clean_ST.0back.dev_data <- rbind(clean_STdev_ag2, clean_0back_ag4)
+clean_ST.0back.dev_data$WMLOAD <- factor(clean_ST.0back.dev_data$WMLOAD,
+                                         levels = c("ST", "0"))
+```
+## Figures
+```{r}
+# == ST vs DT | Feedback | WM load =============================================
+# ==============================================================================
+pd <- position_dodge(0.3)
+f1 <- ggplot(data = clean_ST.DTdev_data, aes(x = WMLOAD,
+                                             y = MEAN,
+                                             group = INTERVAL,
+                                             colour = interaction(INTERVAL,
+                                                                  WMLOAD))) +
+  geom_hline(aes(yintercept = 0), 
+             colour = 'black', 
+             size = .5, 
+             linetype = "dashed") +
+  geom_vline(aes(xintercept = 2), 
+             colour = 'black', 
+             size = .5) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM), 
+                width = .1,
+                position = pd, 
+                show.legend = FALSE) + 
+  geom_point(size = 5, 
+             position = pd) + 
+  labs(x = "Working Memory load", y = "Subjective duration deviation (s)") +
+  scale_x_discrete(limits = c("ST", "", "0", "1", "2", "3"), 
+                   labels = c("Empty\ninterval", "", "0", "1", "2", "3")) + 
+  coord_fixed(ratio = .2) + 
+  guides(size = FALSE) + 
+  scale_y_continuous(breaks = seq(from = -25, to = 25, by = 5),
+                     limits = c(-25, 25)) + 
+  theme_classic() + 
+  geom_line(data = subset(clean_ST.DTdev_data, WMLOAD != "ST"), 
+            aes(colour = INTERVAL), 
+            size = 1.5, 
+            show.legend = FALSE,
+            position = pd) + 
+  theme(legend.title = element_text(face = "bold", size = 18),
+        legend.text = element_text(size = 15), 
+        axis.text = element_text(size = 18),
+        axis.title = element_text(size = 18),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 20, face = "bold"),
+        panel.spacing = unit(2, "lines")) +
+  scale_colour_manual(values = cbPaletteCTRL_DT,
+                      name = "Duration",
+                      labels = c("30s Single task",
+                                 "60s Single task",
+                                 "90s Single task",
+                                 "30s Dual task",
+                                 "60s Dual task",
+                                 "90s Dual task"),
+                      breaks = c("30.ST", "60.ST", "90.ST", "30", "60", "90")) +
+  facet_grid(~COND)
+
+# Save image
+ggsave(f1,
+       file = "D:/M1_thesis/analysis/f1.svg",
+       dpi = 700)
+
+
+# == ST vs DT | Target duration ================================================
+# ==============================================================================
+STvs0back2$INTERVAL <- as.numeric(as.character(STvs0back2$INTERVAL))
+f2 <- ggplot(data = clean_ST.DTdev_data2, aes(x = INTERVAL,
+                                              y = MEAN,
+                                              group = WMLOAD,
+                                              colour = WMLOAD)) +
+  labs(x = "Objective duration (s)", y = "Subjective duration deviation (s)") +
+  scale_y_continuous(breaks = seq(from = -15, to = 10, by = 2),
+                     limits = c(-15, 10)) +
+  geom_hline(aes(yintercept = 0), 
+             colour = 'black', 
+             size = .5, 
+             linetype = "dashed") +
+  theme_classic() +
+  theme(legend.title = element_blank(),
+  legend.text = element_text(size = 15),
+  legend.position = c(.2, .1),
+  axis.title = element_text(size = 18),
+  axis.text = element_text(size = 18),
+  strip.background = element_blank(),
+  strip.text = element_text(size = 20, face = "bold"),
+  panel.spacing = unit(2, "lines")) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+                colour = "black",
+                width = .05,
+                show.legend = FALSE) +
+  geom_point(size = 3) +
+  geom_line(aes(group = WMLOAD), 
+            size = 2,
+            show.legend = FALSE) +
+  scale_fill_manual(values = cbPalette2,
+                    labels = c("Single task",
+                               "Dual task")) +
+  scale_colour_manual(values = cbPalette2,
+                      labels = c("Single task",
+                                 "Dual task"))
+
+# Save image
+ggsave(f2,
+       file = "D:/M1_thesis/analysis/f2.svg",
+       dpi = 700)
+
+
+# == ST vs DT[0-back] | Target duration ========================================
+# ==============================================================================
+f3 <- ggplot(data = clean_ST.0back.dev_data, aes(x = INTERVAL,
+                                                 y = MEAN,
+                                                 group = WMLOAD,
+                                                 colour = WMLOAD)) +
+  labs(x = "Objective duration (s)", y = "Subjective duration deviation (s)") +
+  scale_y_continuous(breaks = seq(from = -15, to = 10, by = 2),
+                     limits = c(-15, 10)) +
+  geom_hline(aes(yintercept = 0), 
+             colour = 'black', 
+             size = .5, 
+             linetype = "dashed") +
+  theme_classic() +
+  theme(legend.title = element_blank(),
+  legend.text = element_text(size = 15),
+  legend.position = c(.2, .1),
+  axis.title = element_text(size = 18),
+  axis.text = element_text(size = 18),
+  strip.background = element_blank(),
+  strip.text = element_text(size = 20, face = "bold"),
+  panel.spacing = unit(2, "lines")) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+                colour = "black",
+                width = .05,
+                show.legend = FALSE) +
+  geom_point(size = 3) +
+  geom_line(aes(group = WMLOAD), 
+            size = 2,
+            show.legend = FALSE) +
+  scale_fill_manual(values = cbPaletteST0back,
+                    labels = c("Single task",
+                               "Dual task: 0-back")) +
+  scale_colour_manual(values = cbPaletteST0back,
+                      labels = c("Single task",
+                                 "Dual task: 0-back"))
+
+# Save image
+ggsave(f3,
+       file = "D:/M1_thesis/analysis/f3.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# Merged ST-dev / DT
+***
+```{r}
+# == Prepare dataset ===========================================================
+# ==============================================================================
+pre_merged_ST <- clean_STdev.data
+pre_merged_ST$RT <- NULL
+names(pre_merged_ST)[names(pre_merged_ST) == "TASK"] <- "WMLOAD"
+
+pre_merged_DT <- clean_DT.data
+pre_merged_DT$RT <- NULL
+pre_merged_DT$RUN <- NULL
+pre_merged_DT$BLOCK <- NULL
+pre_merged_DT$ANSWER <- NULL
+pre_merged_DT$TRIAL <- NULL
+names(pre_merged_DT)[names(pre_merged_DT) == "BACK"] <- "WMLOAD"
+merged_ST.DT <- rbind(pre_merged_ST, pre_merged_DT)
+```
+
+## ST vs DT[0-back] | CV (Figure 2a, inset)
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+clean_0back_cv <- subset(merged_ST.DT, WMLOAD == "0" | WMLOAD == "ST")
+clean_0back_cv_avg <- aggregate(clean_0back_cv$ESTIMATE,
+                                by = list(SUBJ = clean_0back_cv$SUBJ_ID,
+                                          WMLOAD = clean_0back_cv$WMLOAD,
+                                          INTERVAL = clean_0back_cv$INTERVAL),
+                                mean)
+
+clean_0back_cv_avg.sd <- aggregate(clean_0back_cv$ESTIMATE,
+                                   by = list(SUBJ = clean_0back_cv$SUBJ_ID,
+                                             WMLOAD = clean_0back_cv$WMLOAD,
+                                             INTERVAL = clean_0back_cv$INTERVAL),
+                                   sd)
+
+clean_0back_cv_avg.length <- aggregate(clean_0back_cv$ESTIMATE,
+                                       by = list(SUBJ = clean_0back_cv$SUBJ_ID,
+                                                 WMLOAD = clean_0back_cv$WMLOAD,
+                                                 INTERVAL = clean_0back_cv$INTERVAL),
+                                       length)
+
+names(clean_0back_cv_avg)[names(clean_0back_cv_avg) == "x"] <- "MEAN"
+clean_0back_cv_avg$SD <- clean_0back_cv_avg.sd$x
+clean_0back_cv_avg$N <- clean_0back_cv_avg.length$x
+clean_0back_cv_avg$CV <- clean_0back_cv_avg$SD / clean_0back_cv_avg$MEAN
+clean_0back_cv_avg <- clean_0back_cv_avg[complete.cases(clean_0back_cv_avg[, 7]),]
+
+# == ST vs DT[0-back] | Averaged CV ============================================
+# ==============================================================================
+clean_0back_cv_avg2 <- aggregate(clean_0back_cv_avg$CV,
+                                 by = list(WMLOAD = clean_0back_cv_avg$WMLOAD,
+                                           INTERVAL = clean_0back_cv_avg$INTERVAL),
+                                 mean)
+
+clean_0back_cv_avg2.sd <- aggregate(clean_0back_cv_avg$CV,
+                                    by = list(WMLOAD = clean_0back_cv_avg$WMLOAD,
+                                              INTERVAL = clean_0back_cv_avg$INTERVAL),
+                                    sd)
+
+clean_0back_cv_avg2.length <- aggregate(clean_0back_cv_avg$CV,
+                                        by = list(WMLOAD = clean_0back_cv_avg$WMLOAD,
+                                                  INTERVAL = clean_0back_cv_avg$INTERVAL),
+                                        length)
+
+names(clean_0back_cv_avg2)[names(clean_0back_cv_avg2) == "x"] <- "MEAN"
+clean_0back_cv_avg2$SD <- clean_0back_cv_avg2.sd$x
+clean_0back_cv_avg2$N <- clean_0back_cv_avg2.length$x
+clean_0back_cv_avg2$SEM <- clean_0back_cv_avg2$SD / sqrt(clean_0back_cv_avg2$N)
+```
+## Figure
+```{r}
+pd <- position_dodge(0.1)
+f4 <- ggplot(data = clean_0back_cv_avg2, aes(x = INTERVAL,
+                                             y = MEAN,
+                                             group = WMLOAD,
+                                             colour = WMLOAD)) +
+  labs(y = "CV") +
+  scale_y_continuous(breaks = seq(from = .125, to = .250, by = .025),
+                     limits = c(.125, .250)) +
+  theme_classic() +
+  theme(legend.position = "none",
+  axis.title = element_text(size = 18),
+  axis.text = element_text(size = 18),
+  axis.title.x = element_blank(),
+  strip.background = element_blank(),
+  strip.text = element_text(size = 20, face = "bold"),
+  panel.spacing = unit(2, "lines")) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+                colour = "black",
+                width = .05,
+                show.legend = FALSE,
+                position = pd) +
+  geom_point(size = 4,
+             position = pd) +
+  geom_line(aes(group = WMLOAD), 
+            size = 2,
+            show.legend = FALSE,
+            position = pd) +
+  scale_fill_manual(values = cbPaletteST0back) +
+  scale_colour_manual(values = cbPaletteST0back)
+
+# Save image
+ggsave(f4,
+       file = "D:/M1_thesis/analysis/f4.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# ST vs DT[0-back] | SUBJECTIVE DURATION DEVIATION (Figure 2a)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+clean_0back <- subset(merged_ST.DT, WMLOAD == "0")
+clean_0back_avg <- aggregate(clean_0back$Norm_Est,
+                             by = list(WMLOAD = clean_0back$WMLOAD,
+                                       INTERVAL = clean_0back$INTERVAL), 
+                             mean)
+clean_0back_avg.sd <- aggregate(clean_0back$Norm_Est,
+                             by = list(WMLOAD = clean_0back$WMLOAD,
+                                       INTERVAL = clean_0back$INTERVAL), 
+                             sd)
+clean_0back_avg.length <- aggregate(clean_0back$Norm_Est,
+                             by = list(WMLOAD = clean_0back$WMLOAD,
+                                       INTERVAL = clean_0back$INTERVAL), 
+                             length)
+
+names(clean_0back_avg)[names(clean_0back_avg) == "x"] <- "MEAN"
+clean_0back_avg$SD <- clean_0back_avg.sd$x
+clean_0back_avg$N <- clean_0back_avg.length$x
+clean_0back_avg$SEM <- clean_0back_avg$SD / sqrt(clean_0back_avg$N)
+
+clean_STdev_ag3 <- clean_STdev_ag2
+clean_STdev_ag3$MEDIAN <- NULL
+clean_0back_avg <- rbind(clean_STdev_ag3, clean_0back_avg)
+```
+## Figure
+```{r}
+f5 <- ggplot(data = clean_0back_avg, aes(x = INTERVAL,
+                                         y = MEAN,
+                                         group = WMLOAD,
+                                         colour = WMLOAD)) +
+  labs(x = "Objective duration (s)", y = "Subjective duration deviation (s)") +
+  scale_y_continuous(breaks = seq(from = -10, to = 10, by = 2),
+                     limits = c(-10, 10)) +
+  geom_hline(aes(yintercept = 0), 
+             colour = 'black', 
+             size = .5, 
+             linetype = "dashed") +
+  theme_classic() +
+  theme(legend.title = element_blank(),
+  legend.text = element_text(size = 15),
+  legend.position = c(.2, .95),
+  axis.title = element_text(size = 18),
+  axis.text = element_text(size = 18),
+  strip.background = element_blank(),
+  strip.text = element_text(size = 20, face = "bold"),
+  panel.spacing = unit(2, "lines")) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+                colour = "black",
+                width = .05,
+                show.legend = FALSE) +
+  geom_point(size = 3) +
+  geom_line(aes(group = WMLOAD), 
+            size = 2,
+            show.legend = FALSE) +
+  scale_fill_manual(values = cbPaletteST0back,
+                    labels = c("Single task",
+                               "Dual task: 0-back")) +
+  scale_colour_manual(values = cbPaletteST0back,
+                      labels = c("Single task",
+                                 "Dual task: 0-back"))
+
+# Save image
+ggsave(f5,
+       file = "D:/M1_thesis/analysis/f5.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# ST vs DT | SUBJECTIVE DURATION | SCATTER PLOT (Figure 2b)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+DT_sel <- pre_merged_DT
+DT_sel$WMLOAD <- "DT"
+DT_sel$WMLOAD <- as.factor(DT_sel$WMLOAD)
+merged_ST.DT_sel <- rbind(pre_merged_ST, DT_sel)
+
+merged_ST.DT_sel2 <- merged_ST.DT_sel
+merged_ST.DT_sel_avgT <- aggregate(merged_ST.DT_sel$ESTIMATE,
+                                   by = list(WMLOAD = merged_ST.DT_sel$WMLOAD,
+                                             INTERVAL = merged_ST.DT_sel$INTERVAL),
+                                   mean)
+names(merged_ST.DT_sel_avgT)[names(merged_ST.DT_sel_avgT) == "x"] <- "MEAN"
+```
+## Figure
+```{r}
+merged_ST.DT_sel2$INTERVAL <- as.numeric(as.character(merged_ST.DT_sel2$INTERVAL))
+merged_ST.DT_sel_avgT$INTERVAL <- as.numeric(as.character(merged_ST.DT_sel_avgT$INTERVAL))
+
+pd <- position_dodge(6)
+f6 <- ggplot(data = merged_ST.DT_sel2, aes(x = INTERVAL,
+                                           y = ESTIMATE,
+                                           group = WMLOAD,
+                                           colour = WMLOAD)) +
+  geom_segment(aes(x = 0, y = 0, xend = 150, yend = 150),
+               colour = 'black',
+               linetype = "dashed") +
+  geom_point(position = pd, alpha = .5) +
+  geom_line(data = merged_ST.DT_sel_avgT,
+            aes(x = INTERVAL, y = MEAN, group = WMLOAD, colour = WMLOAD),
+            position = pd,
+            size = 2,
+            show.legend = FALSE) +
+  geom_point(data = merged_ST.DT_sel_avgT,
+             aes(x = INTERVAL,
+                 y = MEAN,
+                 group = WMLOAD,
+                 colour = WMLOAD),
+             size = 4,
+             position = pd) +
+  labs(x = "Objective duration (s)", y = "Subjective duration (s)") +
+  scale_y_continuous(breaks = seq(from = 0, to = 150, by = 30),
+                     labels = c(0, 30, 60, 90, 120, 150)) +
+  scale_x_continuous(breaks = seq(from = 30, to = 90, by = 30),
+                     labels = c(30, 60, 90)) +
+  coord_cartesian(xlim = c(0, 120), ylim = c(0, 150)) +
+  theme_classic() +
+  theme(legend.position = c(.15, .9), 
+        legend.title = element_blank(),
+        legend.text = element_text(size = 18), 
+        axis.line.x = element_line(color = "black", size = .5),
+        axis.line.y = element_line(color = "black", size = .5),
+        axis.title = element_text(size = 20),
+        axis.text = element_text(size = 20)) +
+  scale_fill_manual(values = cbPalette2, 
+                    labels = c("Single task", "Dual task")) +
+  scale_colour_manual(values = cbPalette2, 
+                      labels = c("Single task", "Dual task"))
+
+# Save image
+ggsave(f6,
+       file = "D:/M1_thesis/analysis/f6.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# ST vs DT | VARIANCE (Figure 2c)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+var_ST.DT <- aggregate(merged_ST.DT_sel$ESTIMATE,
+                       by = list(SUBJ = merged_ST.DT_sel$SUBJ_ID,
+                              WMLOAD = merged_ST.DT_sel$WMLOAD,
+                              INTERVAL = merged_ST.DT_sel$INTERVAL,
+                              COND = merged_ST.DT_sel$COND),
+                       var)
+
+names(var_ST.DT)[names(var_ST.DT) == "x"] <- "VAR"
+var_ST.DT <- var_ST.DT[complete.cases(var_ST.DT[, 5]),]
+
+var_ST.DT.mean <- aggregate(var_ST.DT$VAR,
+                            by = list(WMLOAD = var_ST.DT$WMLOAD,
+                                      INTERVAL = var_ST.DT$INTERVAL),
+                            mean)
+var_ST.DT.sd <- aggregate(var_ST.DT$VAR,
+                          by = list(WMLOAD = var_ST.DT$WMLOAD,
+                                    INTERVAL = var_ST.DT$INTERVAL),
+                          sd)
+var_ST.DT.length <- aggregate(var_ST.DT$VAR,
+                              by = list(WMLOAD = var_ST.DT$WMLOAD,
+                                     INTERVAL = var_ST.DT$INTERVAL),
+                              length)
+names(var_ST.DT.mean)[names(var_ST.DT.mean) == "x"] <- "MEAN"
+var_ST.DT.mean$SD <- var_ST.DT.sd$x
+var_ST.DT.mean$N <- var_ST.DT.length$x
+var_ST.DT.mean$SEM <- var_ST.DT.mean$SD / sqrt(var_ST.DT.mean$N)
+```
+## Figure
+```{r}
+f7 <- ggplot(data = var_ST.DT.mean,
+             aes(x = WMLOAD,
+                 y = MEAN,
+                 group = INTERVAL,
+                 fill = interaction(INTERVAL, WMLOAD))) +
+  labs(x = "Task", y = "Subjective duration variance (s²)") +
+  scale_y_continuous(breaks = seq(from = 0, to = 450, by = 50),
+                     limits = c(0, 450)) +
+  scale_x_discrete(labels = c("Single", "Dual")) +
+  theme_classic() +
+  theme(legend.title = element_text(face = "bold", size = 18),
+        legend.text = element_text(size = 15),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 20, face = "bold"),
+        panel.spacing = unit(2, "lines")) +
+  scale_fill_manual(values = cbPaletteBar, name = "Duration",
+  labels = c("30s", "60s", "90s", "30s", "60s", "90s")) +
+  geom_bar(stat = "identity", width = .8, position = position_dodge()) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+  colour = "black",
+  width = .1,
+  show.legend = FALSE,
+  position = position_dodge(.8))
+
+# Save image
+ggsave(f7,
+       file = "D:/M1_thesis/analysis/f7.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# ST vs DT | CV (Figure 2d)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+clean_ST.DT_cv <- aggregate(merged_ST.DT_sel$ESTIMATE,
+                            by = list(SUBJ = merged_ST.DT_sel$SUBJ_ID,
+                                      WMLOAD = merged_ST.DT_sel$WMLOAD,
+                                      INTERVAL = merged_ST.DT_sel$INTERVAL),
+                            mean)
+
+clean_ST.DT_cv.sd <- aggregate(merged_ST.DT_sel$ESTIMATE,
+                               by = list(SUBJ = merged_ST.DT_sel$SUBJ_ID,
+                                         WMLOAD = merged_ST.DT_sel$WMLOAD,
+                                         INTERVAL = merged_ST.DT_sel$INTERVAL),
+                               sd)
+
+clean_ST.DT_cv.length <- aggregate(merged_ST.DT_sel$ESTIMATE,
+                                   by = list(SUBJ = merged_ST.DT_sel$SUBJ_ID,
+                                             WMLOAD = merged_ST.DT_sel$WMLOAD,
+                                             INTERVAL = merged_ST.DT_sel$INTERVAL),
+                                   length)
+
+names(clean_ST.DT_cv)[names(clean_ST.DT_cv) == "x"] <- "MEAN"
+clean_ST.DT_cv$SD <- clean_ST.DT_cv.sd$x
+clean_ST.DT_cv$N <- clean_ST.DT_cv.length$x
+clean_ST.DT_cv$CV <- clean_ST.DT_cv$SD / clean_ST.DT_cv$MEAN
+clean_ST.DT_cv <- clean_ST.DT_cv[complete.cases(clean_ST.DT_cv[, 7]),]
+
+# == Averaged CV ===============================================================
+# ==============================================================================
+clean_ST.DT_cv_avg <- aggregate(clean_ST.DT_cv$CV,
+                                by = list(WMLOAD = clean_ST.DT_cv$WMLOAD,
+                                          INTERVAL = clean_ST.DT_cv$INTERVAL),
+                                mean)
+
+clean_ST.DT_cv_avg.sd <- aggregate(clean_ST.DT_cv$CV,
+                                   by = list(WMLOAD = clean_ST.DT_cv$WMLOAD,
+                                             INTERVAL = clean_ST.DT_cv$INTERVAL),
+                                   sd)
+
+clean_ST.DT_cv_avg.length <- aggregate(clean_ST.DT_cv$CV,
+                                       by = list(WMLOAD = clean_ST.DT_cv$WMLOAD,
+                                                 INTERVAL = clean_ST.DT_cv$INTERVAL),
+                                       length)
+
+names(clean_ST.DT_cv_avg)[names(clean_ST.DT_cv_avg) == "x"] <- "MEAN"
+clean_ST.DT_cv_avg$SD <- clean_ST.DT_cv_avg.sd$x
+clean_ST.DT_cv_avg$N <- clean_ST.DT_cv_avg.length$x
+clean_ST.DT_cv_avg$SEM <- clean_ST.DT_cv_avg$SD / sqrt(clean_ST.DT_cv_avg$N)
+```
+## Figure
+```{r}
+f8 <- ggplot(data = clean_ST.DT_cv_avg,
+             aes(x = INTERVAL, y = MEAN, group = WMLOAD, colour = WMLOAD)) +
+  labs(x = "Objective duration (s)", y = "CV") +
+  scale_y_continuous(breaks = seq(from = 0.1, to = .3, by = .05),
+                     limits = c(0.1, .3)) +
+  theme_classic() +
+  theme(legend.title = element_blank(),
+        legend.position = c(.2, .1),
+        legend.text = element_text(size = 15),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 20, face = "bold"),
+        panel.spacing = unit(2, "lines")) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+                colour = "black",
+                width = .05,
+                show.legend = FALSE) +
+  geom_point(size = 4) +
+  geom_line(aes(group = WMLOAD), 
+            size = 2,
+            show.legend = FALSE) +
+  scale_fill_manual(values = cbPalette2,
+                    labels = c("Single task", "Dual task")) +
+  scale_colour_manual(values = cbPalette2,
+                      labels = c("Single task", "Dual task"))
+
+# Save image
+ggsave(f8,
+       file = "D:/M1_thesis/analysis/f8.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# ST vs DT[n-back] (merged Fdbck/NoFdbck) | DEVIATED DURATION ESTIMATION (Figure 3a)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+clean_ST.DT.devT <- aggregate(merged_ST.DT$Norm_Est,
+                              by = list(WMLOAD = merged_ST.DT$WMLOAD,
+                                        INTERVAL = merged_ST.DT$INTERVAL), 
+                              mean)
+clean_ST.DT.devT.sd <- aggregate(merged_ST.DT$Norm_Est,
+                                 by = list(WMLOAD = merged_ST.DT$WMLOAD,
+                                        INTERVAL = merged_ST.DT$INTERVAL), 
+                                 sd)
+clean_ST.DT.devT.length <- aggregate(merged_ST.DT$Norm_Est,
+                                     by = list(WMLOAD = merged_ST.DT$WMLOAD,
+                                               INTERVAL = merged_ST.DT$INTERVAL), 
+                                     length)
+
+names(clean_ST.DT.devT)[names(clean_ST.DT.devT) == "x"] <- "MEAN"
+clean_ST.DT.devT$SD <- clean_ST.DT.devT.sd$x
+clean_ST.DT.devT$N <- clean_ST.DT.devT.length$x
+clean_ST.DT.devT$SEM <- clean_ST.DT.devT$SD / sqrt(clean_ST.DT.devT$N)
+```
+## Figure
+```{r}
+pd <- position_dodge(0.3)
+merged_fig <- ggplot(data = clean_ST.DT.devT,
+                     aes(x = WMLOAD,
+                         y = MEAN,
+                         group = INTERVAL,
+                         colour = interaction(INTERVAL, WMLOAD))) +
+  geom_hline(aes(yintercept = 0), 
+             colour = 'black', 
+             size = .5, 
+             linetype = "dashed") +
+  geom_vline(aes(xintercept = 2), 
+             colour = 'black', 
+             size = .5) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM), 
+                width = .1, 
+                position = pd, 
+                show.legend = FALSE) + 
+  geom_point(size = 5, 
+             position = pd) + 
+  labs(x = "Working Memory load", y = "Subjective duration deviation (s)") +
+  scale_x_discrete(limits = c("ST", "", "0", "1", "2", "3"), 
+                   labels = c("Empty\ninterval", "", "0", "1", "2", "3")) + 
+  coord_fixed(ratio = .2) + 
+  guides(size = FALSE) + 
+  scale_y_continuous(breaks = seq(from = -25, to = 25, by = 5),
+                     limits = c(-25, 25)) + 
+  theme_classic() +
+  annotate("text", x = 1, y = 23, label = 'bold("Single\ntask")',
+           colour = "black", parse = TRUE, size = 5) + 
+  annotate("text", x = 4.5, y = 23, label = 'bold("Dual\ntask")',
+           colour = "black", parse = TRUE, size = 5) +
+  geom_line(data = subset(clean_ST.DT.devT, WMLOAD != "ST"), 
+            aes(colour = INTERVAL), 
+            size = 1.5, 
+            show.legend = FALSE,
+            position = pd) + 
+  theme(legend.title = element_text(face = "bold", size = 18),
+        legend.text = element_text(size = 15), 
+        axis.text = element_text(size = 18),
+        axis.title = element_text(size = 18),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 20, face = "bold"),
+        panel.spacing = unit(2, "lines")) +
+  scale_colour_manual(values = cbPaletteCTRL_DT,
+                      name = "Duration",
+                      labels = c("30s", "60s", "90s", "30s", "60s", "90s"),
+                      breaks = c("30.ST", "60.ST", "90.ST", "30", "60", "90"))
+
+legend_wm.time <- get_legend(merged_fig)
+
+blank_img_wm.time <- ggplot() +
+  geom_blank(aes(.5, 1)) +
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.line = element_blank()) +
+  xlim(0, .5) +
+  ylim(-20, 25) +
+  annotation_custom(grob = legend_wm.time,
+                    xmin = .03,
+                    ymin = 3,
+                    xmax = .05,
+                    ymax = 3) +
+  annotation_custom(grob = textGrob("Overestimation",
+                                    rot = 90, 
+                    gp = gpar(fontsize = 15)),
+                    xmin = .18,
+                    xmax = .18,
+                    ymin = 14,
+                    ymax = 14) +
+  annotation_custom(grob = textGrob("Underestimation",
+                                    rot = 90, 
+                    gp = gpar(fontsize = 15)),
+                    xmin = .18,
+                    xmax = .18,
+                    ymin = -8,
+                    ymax = -8) +
+  annotation_custom(grob = segmentsGrob(arrow = arrow(type = "closed", 
+                                                      ends = "last"),
+                                        gp = gpar(col = "grey"),
+                                        name = NULL,
+                                        vp = NULL),
+                    xmin = .05,
+                    ymin = 10,
+                    xmax = .05,
+                    ymax = 18) +
+  annotation_custom(grob = segmentsGrob(arrow = arrow(type = "closed",
+                                                      ends = "first"),
+                                        gp = gpar(col = "grey"),
+                                        name = NULL,
+                                        vp = NULL),
+                    xmin = .05,
+                    ymin = -4,
+                    xmax = .05,
+                    ymax = -12)
+
+f9 <- grid.arrange(merged_fig + theme(legend.position = "none"), 
+                   blank_img_wm.time, ncol = 2, nrow = 1, widths = c(1, .1))
+
+# Save image
+ggsave(f9,
+       file = "D:/M1_thesis/analysis/f9.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# ST vs DT | DENSITY PLOT (Figure 3b)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+merged_ST.DT_avg <- aggregate(merged_ST.DT$ESTIMATE,
+                              by = list(SUBJ = merged_ST.DT$SUBJ_ID,
+                                        WMLOAD = merged_ST.DT$WMLOAD,
+                                        INTERVAL = merged_ST.DT$INTERVAL,
+                                        COND = merged_ST.DT$COND),
+                              mean)
+names(merged_ST.DT_avg)[names(merged_ST.DT_avg) == "x"] <- "ESTIMATE"
+```
+## Figure
+```{r}
+# == ST | Density ==============================================================
+# ==============================================================================
+ST.den <- ggplot(subset(merged_ST.DT_avg, WMLOAD == "ST"),
+                 aes(x = ESTIMATE, group = INTERVAL, fill = INTERVAL)) + 
+  geom_density(aes(fill = INTERVAL), linetype = "blank", alpha = 0.5) + 
+  theme_classic() +
+  theme(legend.title = element_text(face = "bold", size = 18),
+        legend.text = element_text(size = 15),
+        legend.position = c(.32, .7),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18),
+        axis.title.x = element_text(colour = "white"),
+        axis.line.x = element_line(color = "black", size = .5),
+        axis.line.y = element_line(color = "black", size = .5)) + 
+  labs(y = "Density", x = "Subjective duration (s)") +
+  annotate("text", x = 180, y = .05, label = 'bold("Single task")',
+           size = 7, parse = TRUE) +
+  scale_x_continuous(limits = c(0, 180), 
+                     breaks = c(0, 30, 60, 90, 120, 150, 180), 
+                     labels = c("0", "30", "60", "90", "120", "150", "180")) +
+  scale_y_reverse(limits = c(.09, 0),
+                  breaks = c(.0, .04, .08), 
+                  labels = c(".00", ".04", ".08")) +
+  coord_flip() +
+  scale_fill_manual(values = cbPaletteCTRL, name = "Duration",
+                    labels = c("30s", "60s", "90s"))
+
+# == DT[0-back] | Density ======================================================
+# ==============================================================================
+DT0back.den <- ggplot(subset(merged_ST.DT_avg, WMLOAD == "0"),
+                      aes(x = ESTIMATE, group = INTERVAL, fill = INTERVAL)) + 
+  geom_density(aes(fill = INTERVAL), linetype = "blank", alpha = 0.5) + 
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18),
+        axis.line.y = element_line(colour = "white"),
+        axis.text.y = element_text(colour = "white"),
+        axis.title.x = element_text(colour = "white"),
+        axis.title.y = element_text(colour = "white"),
+        axis.ticks.y = element_line(colour = "white"),
+        axis.line.x = element_line(color = "black", size = .5)) +
+  labs(y = "Density", x = "Blabla") +
+  annotate("text", x = 170, y = .05, label = 'bold("Dual task\n0-back")',
+           size = 7, parse = TRUE) +
+  scale_x_continuous(limits = c(0, 180), 
+                     breaks = c(30, 60, 90, 120, 150, 180), 
+                     labels = c("30", "60", "90", "120", "150", "180")) + 
+  scale_y_continuous(limits = c(0, .09),
+                     breaks = c(.0, .04, .08), 
+                     labels = c(".00", ".04", ".08")) +
+  scale_fill_manual(values = cbPaletteDT, name = "Time interval",
+                    labels = c("30s", "60s", "90s")) +
+  coord_flip()
+
+# == DT[1-back] | Density ======================================================
+# ==============================================================================
+DT1back.den <- ggplot(subset(merged_ST.DT_avg, WMLOAD == "1"),
+                      aes(x = ESTIMATE, group = INTERVAL, fill = INTERVAL)) + 
+  geom_density(aes(fill = INTERVAL), linetype = "blank", alpha = 0.5) + 
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18),
+        axis.line.y = element_line(colour = "white"),
+        axis.text.y = element_text(colour = "white"),
+        axis.title.y = element_text(colour = "white"),
+        axis.ticks.y = element_line(colour = "white"),
+        axis.line.x = element_line(color = "black", size = .5)) +
+  labs(y = "Density", x = "Blabla") + 
+  annotate("text", x = 170, y = .05, label = 'bold("Dual task\n1-back")',
+           size = 7, parse = TRUE) +
+  scale_x_continuous(limits = c(0, 180), 
+                     breaks = c(30, 60, 90, 120, 150, 180), 
+                     labels = c("30", "60", "90", "120", "150", "180")) + 
+  scale_y_continuous(limits = c(0, .09),
+                     breaks = c(.0, .04, .08), 
+                     labels = c(".00", ".04", ".08")) +
+  scale_fill_manual(values = cbPaletteDT, name = "Time interval",
+                    labels = c("30s", "60s", "90s")) +
+  coord_flip()
+
+# == DT[2-back] | Density ======================================================
+# ==============================================================================
+DT2back.den <- ggplot(subset(merged_ST.DT_avg, WMLOAD == "2"),
+                      aes(x = ESTIMATE, group = INTERVAL, fill = INTERVAL)) + 
+  geom_density(aes(fill = INTERVAL), linetype = "blank", alpha = 0.5) + 
+  theme_classic() +
+  theme(legend.position = "none",
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18),
+        axis.line.y = element_line(colour = "white"),
+        axis.text.y = element_text(colour = "white"),
+        axis.title.x = element_text(colour = "white"),
+        axis.title.y = element_text(colour = "white"),
+        axis.ticks.y = element_line(colour = "white"),
+        axis.line.x = element_line(color = "black", size = .5)) +
+  labs(y = "Density", x = "Blabla") + 
+  annotate("text", x = 170, y = .05, label = 'bold("Dual task\n2-back")',
+           size = 7, parse = TRUE) +
+  scale_x_continuous(limits = c(0, 180), 
+                     breaks = c(30, 60, 90, 120, 150, 180), 
+                     labels = c("30", "60", "90", "120", "150", "180")) + 
+  scale_y_continuous(limits = c(0, .09),
+                     breaks = c(.0, .04, .08), 
+                     labels = c(".00", ".04", ".08")) +
+  scale_fill_manual(values = cbPaletteDT, name = "Time interval",
+                    labels = c("30s", "60s", "90s")) +
+  coord_flip()
+
+# == DT[3-back] | Density ======================================================
+# ==============================================================================
+DT3back.den <- ggplot(subset(merged_ST.DT_avg, WMLOAD == "3"),
+                      aes(x = ESTIMATE, group = INTERVAL, fill = INTERVAL)) + 
+  geom_density(aes(fill = INTERVAL), linetype = "blank", alpha = 0.5) + 
+  theme_classic() +
+  theme(legend.title = element_text(face = "bold", size = 18),
+        legend.text = element_text(size = 15),
+        legend.position = c(.75, .7),
+        axis.title = element_text(size = 18),
+        axis.text = element_text(size = 18),
+        axis.line.y = element_line(colour = "white"),
+        axis.text.y = element_text(colour = "white"),
+        axis.title.x = element_text(colour = "white"),
+        axis.title.y = element_text(colour = "white"),
+        axis.ticks.y = element_line(colour = "white"),
+        axis.line.x = element_line(color = "black", size = .5)) +
+  labs(y = "Density", x = "Blabla") + 
+  annotate("text", x = 170, y = .05, label = 'bold("Dual task\n3-back")',
+           size = 7, parse = TRUE) +
+  scale_x_continuous(limits = c(0, 180), 
+                     breaks = c(30, 60, 90, 120, 150, 180), 
+                     labels = c("30", "60", "90", "120", "150", "180")) + 
+  scale_y_continuous(limits = c(0, .09),
+                     breaks = c(.0, .04, .08), 
+                     labels = c(".00", ".03", ".08")) +
+  scale_fill_manual(values = cbPaletteDT, name = "Duration",
+                    labels = c("30s", "60s", "90s")) +
+  coord_flip()
+
+
+# == Joint figure ST + DT ======================================================
+# ==============================================================================
+f10 <- grid.arrange(ST.den, DT0back.den, DT1back.den, DT2back.den, DT3back.den,
+                   ncol = 5, nrow = 1, widths = c(1, 1, 1, 1, 1))
+
+# Save image
+ggsave(f10,
+       file = "D:/M1_thesis/analysis/f10.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# DT[n-back] | CV (Figure 3c)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+clean_DTnback_cv <- aggregate(pre_merged_DT$ESTIMATE,
+                              by = list(SUBJ = pre_merged_DT$SUBJ_ID,
+                                        WMLOAD = pre_merged_DT$WMLOAD,
+                                        INTERVAL = pre_merged_DT$INTERVAL),
+                              mean)
+
+clean_DTnback_cv.sd <- aggregate(pre_merged_DT$ESTIMATE,
+                                 by = list(SUBJ = pre_merged_DT$SUBJ_ID,
+                                         WMLOAD = pre_merged_DT$WMLOAD,
+                                         INTERVAL = pre_merged_DT$INTERVAL),
+                                 sd)
+
+clean_DTnback_cv.length <- aggregate(pre_merged_DT$ESTIMATE,
+                                     by = list(SUBJ = pre_merged_DT$SUBJ_ID,
+                                             WMLOAD = pre_merged_DT$WMLOAD,
+                                             INTERVAL = pre_merged_DT$INTERVAL),
+                                     length)
+
+names(clean_DTnback_cv)[names(clean_DTnback_cv) == "x"] <- "MEAN"
+clean_DTnback_cv$SD <- clean_DTnback_cv.sd$x
+clean_DTnback_cv$N <- clean_DTnback_cv.length$x
+clean_DTnback_cv$CV <- clean_DTnback_cv$SD / clean_DTnback_cv$MEAN
+clean_DTnback_cv <- clean_DTnback_cv[complete.cases(clean_DTnback_cv[, 7]),]
+
+# == Averaged CV ===============================================================
+# ==============================================================================
+clean_DTnback_cv_avg <- aggregate(clean_DTnback_cv$CV,
+                                  by = list(WMLOAD = clean_DTnback_cv$WMLOAD),
+                                  mean)
+
+clean_DTnback_cv_avg.sd <- aggregate(clean_DTnback_cv$CV,
+                                     by = list(WMLOAD = clean_DTnback_cv$WMLOAD),
+                                     sd)
+
+clean_DTnback_cv_avg.length <- aggregate(clean_DTnback_cv$CV,
+                                         by = list(WMLOAD = clean_DTnback_cv$WMLOAD),
+                                         length)
+
+names(clean_DTnback_cv_avg)[names(clean_DTnback_cv_avg) == "x"] <- "MEAN"
+clean_DTnback_cv_avg$SD <- clean_DTnback_cv_avg.sd$x
+clean_DTnback_cv_avg$N <- clean_DTnback_cv_avg.length$x
+clean_DTnback_cv_avg$SEM <- clean_DTnback_cv_avg$SD / sqrt(clean_DTnback_cv_avg$N)
+```
+## Figure
+```{r}
+f11 <- ggplot(data = clean_DTnback_cv_avg, aes(x = WMLOAD, y = MEAN)) +
+  labs(x = "Working Memory load", y = "CV") +
+  scale_y_continuous(breaks = seq(from = 0.16, to = .28, by = .02),
+                     limits = c(0.16, .28)) +
+  theme_classic() +
+  geom_line(aes(group = WMLOAD),
+            size = 2,
+            show.legend = FALSE) +
+  theme(axis.title = element_text(size = 18),
+  axis.text = element_text(size = 18),
+  strip.background = element_blank(),
+  strip.text = element_text(size = 20, face = "bold"),
+  panel.spacing = unit(2, "lines")) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+                colour = "black",
+                width = .05,
+                show.legend = FALSE) +
+  geom_point(size = 2)
+
+# Save image
+ggsave(f11,
+       file = "D:/M1_thesis/analysis/f11.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# ST vs DT[0-back] | SUBJECTIVE DURATION DEVIATION | separate Fdbck/NoFdbck (Supplementary figure 1b)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+ST.0back_facet_devT_avg <- aggregate(ST.0back$Norm_Est,
+                                     by = list(WMLOAD = ST.0back$WMLOAD,
+                                               INTERVAL = ST.0back$INTERVAL,
+                                               COND = ST.0back$COND), 
+                                     mean)
+ST.0back_facet_devT_avg.sd <- aggregate(ST.0back$Norm_Est,
+                                        by = list(WMLOAD = ST.0back$WMLOAD,
+                                                  INTERVAL = ST.0back$INTERVAL,
+                                                  COND = ST.0back$COND), 
+                                        sd)
+ST.0back_facet_devT_avg.length <- aggregate(ST.0back$Norm_Est,
+                                            by = list(WMLOAD = ST.0back$WMLOAD,
+                                                      INTERVAL = ST.0back$INTERVAL,
+                                                      COND = ST.0back$COND), 
+                                            length)
+
+names(ST.0back_facet_devT_avg)[names(ST.0back_facet_devT_avg) == "x"] <- "MEAN"
+ST.0back_facet_devT_avg$SD <- ST.0back_facet_devT_avg.sd$x
+ST.0back_facet_devT_avg$N <- ST.0back_facet_devT_avg.length$x
+ST.0back_facet_devT_avg$SEM <- ST.0back_facet_devT_avg$SD / sqrt(ST.0back_facet_devT_avg$N)
+```
+## Figure
+```{r}
+pd <- position_dodge(0.2)
+f12 <- ggplot(data = ST.0back_facet_devT_avg,
+              aes(x = INTERVAL, y = MEAN, group = WMLOAD, colour = WMLOAD)) +
+  labs(x = "Objective duration (s)", y = "Subjective duration deviation (s)") +
+  scale_y_continuous(breaks = seq(from = -14, to = 14, by = 2),
+                     limits = c(-14, 14)) +
+  geom_hline(aes(yintercept = 0), 
+             colour = 'black', 
+             size = .5, 
+             linetype = "dashed") +
+  theme_classic() +
+  theme(legend.title = element_blank(),
+  legend.text = element_text(size = 15),
+  legend.position = c(.2, .1),
+  axis.title = element_text(size = 18),
+  axis.text = element_text(size = 18),
+  strip.background = element_blank(),
+  strip.text = element_text(size = 20, face = "bold"),
+  panel.spacing = unit(2, "lines")) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM),
+                width = .05,
+                show.legend = FALSE,
+                position = pd) +
+  geom_point(size = 4,
+             position = pd) +
+  geom_line(aes(group = WMLOAD), 
+            size = 2,
+            show.legend = FALSE,
+            position = pd) +
+  scale_fill_manual(values = cbPaletteST0back,
+                    labels = c("Single task",
+                               "Dual task: 0-back")) +
+  scale_colour_manual(values = cbPaletteST0back,
+                      labels = c("Single task",
+                                 "Dual task: 0-back")) +
+  facet_grid(~COND,
+             labeller = labeller(COND = c(NoFdbck = 'NO FEEDBACK',
+                                          Fdbck = 'FEEDBACK')))
+# Save image
+ggsave(f12,
+       file = "D:/M1_thesis/analysis/f12.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# ST vs DT[n-back] | SUBJECTIVE DURATION DEVIATION | separate Fdbck/NoFdbck (Supplementary figure 3)
+***
+```{r}
+# == Pre-compute descriptive stats =============================================
+# ==============================================================================
+clean_ST.DT_facet_devT <- aggregate(merged_ST.DT$Norm_Est,
+                                    by = list(WMLOAD = merged_ST.DT$WMLOAD,
+                                              INTERVAL = merged_ST.DT$INTERVAL,
+                                              COND = merged_ST.DT$COND), 
+                                    mean)
+clean_ST.DT_facet_devT.sd <- aggregate(merged_ST.DT$Norm_Est,
+                                       by = list(WMLOAD = merged_ST.DT$WMLOAD,
+                                                 INTERVAL = merged_ST.DT$INTERVAL,
+                                                 COND = merged_ST.DT$COND), 
+                                       sd)
+clean_ST.DT_facet_devT.length <- aggregate(merged_ST.DT$Norm_Est,
+                                           by = list(WMLOAD = merged_ST.DT$WMLOAD,
+                                                     INTERVAL = merged_ST.DT$INTERVAL,
+                                                     COND = merged_ST.DT$COND), 
+                                           length)
+
+names(clean_ST.DT_facet_devT)[names(clean_ST.DT_facet_devT) == "x"] <- "MEAN"
+clean_ST.DT_facet_devT$SD <- clean_ST.DT_facet_devT.sd$x
+clean_ST.DT_facet_devT$N <- clean_ST.DT_facet_devT.length$x
+clean_ST.DT_facet_devT$SEM <- clean_ST.DT_facet_devT$SD / sqrt(clean_ST.DT_facet_devT$N)
+```
+## Figure
+```{r}
+facet_fig_col_code <- ggplot(data = clean_ST.DT_facet_devT,
+                             aes(x = WMLOAD,
+                                 y = MEAN,
+                                 group = INTERVAL,
+                                 colour = interaction(INTERVAL, WMLOAD))) +
+  geom_hline(aes(yintercept = 0), 
+             colour = 'black', 
+             size = .5, 
+             linetype = "dashed") +
+  geom_vline(aes(xintercept = 2), 
+             colour = 'black', 
+             size = .5) +
+  geom_errorbar(aes(ymin = MEAN - SEM, ymax = MEAN + SEM), 
+                width = .1, 
+                position = pd, 
+                show.legend = FALSE) + 
+  geom_point(size = 5, 
+             position = pd) + 
+  labs(x = "Working Memory load", y = "Subjective duration deviation (s)") +
+  scale_x_discrete(limits = c("ST", "", "0", "1", "2", "3"), 
+                   labels = c("Empty\ninterval", "", "0", "1", "2", "3")) + 
+  coord_fixed(ratio = .2) + 
+  guides(size = FALSE) + 
+  scale_y_continuous(breaks = seq(from = -25, to = 25, by = 5),
+                     limits = c(-25, 25)) + 
+  theme_classic() + 
+  geom_line(data = subset(summary.pr.ctrl.2_avg, WMLOAD != "ST"), 
+            aes(colour = INTERVAL), 
+            size = 1.5, 
+            show.legend = FALSE,
+            position = pd) + 
+  theme(legend.title = element_text(face = "bold", size = 18),
+        legend.text = element_text(size = 15), 
+        axis.text = element_text(size = 18),
+        axis.title = element_text(size = 18),
+        strip.background = element_blank(),
+        strip.text = element_text(size = 20, face = "bold"),
+        panel.spacing = unit(2, "lines")) +
+  scale_colour_manual(values = cbPaletteCTRL_DT,
+                      name = "Duration",
+                      labels = c("30s Single task",
+                                 "60s Single task",
+                                 "90s Single task",
+                                 "30s Dual task",
+                                 "60s Dual task",
+                                 "90s Dual task"),
+                      breaks = c("30.ST", "60.ST", "90.ST", "30", "60", "90")) +
+  facet_grid(~COND,
+             labeller = labeller(COND = c(NoFdbck = 'NO FEEDBACK',
+                                          Fdbck = 'FEEDBACK')))
+#  annotate("text", x= 1, y= 23, label= 'bold("Single\ntask")', colour= "black", parse=TRUE, size=5) + 
+#  annotate("text", x= 4.5, y= 23, label= 'bold("Dual\ntask")', colour= "black", parse=TRUE, size=5) +
+
+legend_wm.time <- get_legend(facet_fig_col_code)
+
+blank_img_wm.time <- ggplot() +
+  geom_blank(aes(.5, 1)) +
+  theme(plot.background = element_blank(),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        panel.border = element_blank(),
+        panel.background = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank(),
+        axis.text.x = element_blank(), 
+        axis.text.y = element_blank(),
+        axis.ticks = element_blank(),
+        axis.line = element_blank()) +
+  xlim(0, .5) +
+  ylim(-20, 25) +
+  annotation_custom(grob = legend_wm.time,
+                    xmin = .03,
+                    ymin = 3,
+                    xmax = .05,
+                    ymax = 3) +
+  annotation_custom(grob = textGrob("Overestimation",
+                                    rot = 90, 
+                    gp = gpar(fontsize = 15)),
+                    xmin = .18,
+                    xmax = .18,
+                    ymin = 14,
+                    ymax = 14) +
+  annotation_custom(grob = textGrob("Underestimation",
+                                    rot = 90, 
+                    gp = gpar(fontsize = 15)),
+                    xmin = .18,
+                    xmax = .18,
+                    ymin = -8,
+                    ymax = -8) +
+  annotation_custom(grob = segmentsGrob(arrow = arrow(type = "closed", 
+                                                    ends = "last"),
+                                        gp = gpar(col = "grey"),
+                                        name = NULL,
+                                        vp = NULL),
+                    xmin = .05,
+                    ymin = 10,
+                    xmax = .05,
+                    ymax = 18) +
+  annotation_custom(grob = segmentsGrob(arrow = arrow(type = "closed",
+                                                      ends = "first"),
+                                        gp = gpar(col = "grey"),
+                                        name = NULL,
+                                        vp = NULL),
+                    xmin = .05,
+                    ymin = -4,
+                    xmax = .05,
+                    ymax = -12)
+
+f13 <- grid.arrange(facet_fig_col_code + theme(legend.position = "none"), 
+                    blank_img_wm.time, ncol = 2, nrow = 1, widths = c(1, .1))
+
+# Save image
+ggsave(f12,
+       file = "D:/M1_thesis/analysis/f13.svg",
+       dpi = 700)
+```
+<br><br>
+
+
+# MODEL TESTING | SUBJECTIVE DURATION DEVIATION | ST vs DT[0-back] (Supplementary figure 1a)
+```{r}
+ST.0back <- subset(merged_ST.DT, WMLOAD == "ST" | WMLOAD == "0")
+
+# == ST differences across Duration ==
+zz <- subset(ST.0back, WMLOAD == "ST")
+STdiff_model_0 <- lmer(Norm_Est ~ 1 + (1 | SUBJ_ID),
+                       data = zz,
+                       REML = FALSE)
+STdiff_model_1 <- lmer(Norm_Est ~ INTERVAL + (1 | SUBJ_ID),
+                       data = zz,
+                       REML = FALSE)
+
+lrtest(STdiff_model_0, STdiff_model_1)
+AIC(STdiff_model_0, STdiff_model_1)
+
+summary(STdiff_model_1)
+lsmeans(STdiff_model_1, pairwise ~ INTERVAL)
+
+# == DT:0-back differences across Duration ==
+ww <- subset(ST.0back, WMLOAD == "0")
+DT.0back_diff_model_0 <- lmer(Norm_Est ~ 1 + (1 | SUBJ_ID),
+                              data = ww,
+                              REML = FALSE)
+DT.0back_diff_model_1 <- lmer(Norm_Est ~ INTERVAL + (1 | SUBJ_ID),
+                              data = ww,
+                              REML = FALSE)
+
+lrtest(DT.0back_diff_model_0, DT.0back_diff_model_1)
+AIC(DT.0back_diff_model_0, DT.0back_diff_model_1)
+
+summary(STdiff_model_1)
+lsmeans(DT.0back_diff_model_1, pairwise ~ INTERVAL)
+
+# == ST vs DT[0-back] ==========================================================
+# == Deviated subjective duration estimation ===================================
+STvs0back_model_0 <- lmer(Norm_Est ~ 1 + (1 | SUBJ_ID),
+                          data = ST.0back,
+                          REML = FALSE)
+STvs0back_model_1 <- lmer(Norm_Est ~ WMLOAD + (1 | SUBJ_ID),
+                          data = ST.0back,
+                          REML = FALSE)
+
+lrtest(STvs0back_model_0, STvs0back_model_1)
+AIC(STvs0back_model_0, STvs0back_model_1)
+
+STvs0back_model_2 <- lmer(Norm_Est ~ WMLOAD + INTERVAL + (1 | SUBJ_ID),
+                          data = ST.0back,
+                          REML = FALSE)
+
+lrtest(STvs0back_model_1, STvs0back_model_2)
+AIC(STvs0back_model_1, STvs0back_model_2)
+
+STvs0back_model_3 <- lmer(Norm_Est ~ WMLOAD * INTERVAL + (1 | SUBJ_ID),
+                          data = ST.0back,
+                          REML = FALSE)
+
+lrtest(STvs0back_model_2, STvs0back_model_3)
+AIC(STvs0back_model_2, STvs0back_model_3)
+
+summary(STvs0back_model_3)
+
+
+v <- visreg(STvs0back_model_3, "INTERVAL", by = "WMLOAD", overlay = TRUE)
+plot(v,
+     main = "Regression model Single task vs Dual task: 0-back",
+     xlab = "Objective duration (s)",
+     ylab = "Subjective duration deviation (s)",
+     ylim = c(-80, 80),
+     yaxt = "n",
+     overlay = TRUE,
+     points.par = list(col = cbPaletteST0back),
+     line.par = list(col = cbPaletteST0back, lwd = 5),
+     legend = FALSE)
+axis(2, at = seq(-80, 80, 10), las = 2)
+abline(h = 0, lty = 2, lwd = 3)
+legend("bottomleft", legend = c("Single task", "Dual task"),
+       fill = cbPaletteST0back, border = cbPaletteST0back, bty = "n")
+
+# ----- Pairwise comparisons ------------------------
+# -- Main effect of Task ----------------------------
+lsmeans(STvs0back_model_3, pairwise ~ WMLOAD | INTERVAL)
+
+# -- Main effect of Interval ------------------------
+lsmeans(STvs0back_model_3, pairwise ~ INTERVAL | WMLOAD)
+    
+# -- Main effect of Interaction WM load / Feedback --
+contrast(lsmeans(STvs0back_model_3, pairwise ~ WMLOAD | INTERVAL), 
+         interaction = "pairwise")
+
+
+# == ST vs DT[0-back] (Feedback vs No Feedback) ================================
+# == Deviated subjective duration estimation ===================================
+STvs0back_model_facet_0 <- lmer(Norm_Est ~ 1  + (1 | SUBJ_ID),
+                                data = subset(ST.0back, COND == "NoFdbck"),
+                                REML = FALSE)
+STvs0back_model_facet_1 <- lmer(Norm_Est ~ 1  + WMLOAD + (1 | SUBJ_ID),
+                                data = subset(ST.0back, COND == "NoFdbck"),
+                                REML = FALSE)
+STvs0back_model_facet_2 <- lmer(Norm_Est ~ WMLOAD + INTERVAL + (1 | SUBJ_ID),
+                                data = subset(ST.0back, COND == "NoFdbck"),
+                                REML = FALSE)
+STvs0back_model_facet_3 <- lmer(Norm_Est ~ WMLOAD * INTERVAL + (1 | SUBJ_ID),
+                                data = subset(ST.0back, COND == "NoFdbck"),
+                                REML = FALSE)
+
+
+STvs0back_model_1 <- lmer(Norm_Est ~ WMLOAD  + (1 | SUBJ_ID),
+                          data = subset(STvs0back_data, COND == "Fdbck"),
+                          REML = FALSE)
+
+lrtest(STvs0back_model_facet_0, STvs0back_model_facet_1)
+AIC(STvs0back_model_facet_0, STvs0back_model_facet_1)
+
+STvs0back_model_2 <- lmer(Norm_Est ~ WMLOAD + INTERVAL + (1 | SUBJ_ID),
+                          data = subset(STvs0back_data, COND == "Fdbck"),
+                          REML = FALSE)
+
+lrtest(STvs0back_model_1, STvs0back_model_2)
+AIC(STvs0back_model_1, STvs0back_model_2)
+
+STvs0back_model_3 <- lmer(Norm_Est ~ WMLOAD * INTERVAL + (1 | SUBJ_ID),
+                          data = subset(STvs0back_data, COND == "Fdbck"),
+                          REML = FALSE)
+
+lrtest(STvs0back_model_2, STvs0back_model_3)
+AIC(STvs0back_model_2, STvs0back_model_3)
+
+lsmeans(STvs0back_model_3, pairwise ~ INTERVAL | WMLOAD)
+```
+<br><br>
+
+
+# MODEL TESTING | CV | ST vs DT[0-back]
+***
+```{r}
+STvs0back.CV_model_0 <- lmer(CV ~ 1 + (1 | SUBJ),
+                             data = clean_0back_cv_avg, REML = FALSE)
+STvs0back.CV_model_1 <- lmer(CV ~ WMLOAD + (1 | SUBJ),
+                             data = clean_0back_cv_avg, REML = FALSE)
+STvs0back.CV_model_1 <- lmer(CV ~ INTERVAL + (1 | SUBJ),
+                             data = clean_0back_cv_avg, REML = FALSE)
+
+lrtest(STvs0back.CV_model_0, STvs0back.CV_model_1)
+AIC(STvs0back.CV_model_0, STvs0back.CV_model_1)
+```
+<br><br>
+
+
+# MODEL TESTING | SUBJECTIVE DURATION DEVIATION | ST vs DT (Supplementary figure 2)
+***
+```{r}
+STvsDT_model_0 <- lmer(Norm_Est ~ 1 + (1 | SUBJ_ID),
+                       data = merged_ST.DT_sel, REML = FALSE)
+STvsDT_model_1 <- lmer(Norm_Est ~ WMLOAD + (1 | SUBJ_ID),
+                       data = merged_ST.DT_sel, REML = FALSE)
+
+lrtest(STvsDT_model_0, STvsDT_model_1)
+AIC(STvsDT_model_0, STvsDT_model_1)
+
+STvsDT_model_2 <- lmer(Norm_Est ~ WMLOAD + INTERVAL + (1 | SUBJ_ID),
+                       data = merged_ST.DT_sel, REML = FALSE)
+
+lrtest(STvsDT_model_1, STvsDT_model_2)
+AIC(STvsDT_model_1, STvsDT_model_2)
+
+STvsDT_model_3 <- lmer(Norm_Est ~ WMLOAD * INTERVAL + (1 | SUBJ_ID),
+                       data = merged_ST.DT_sel, REML = FALSE)
+
+lrtest(STvsDT_model_2, STvsDT_model_3)
+AIC(STvsDT_model_2, STvsDT_model_3)
+
+
+# ----- Pairwise comparisons ----------------------
+# -- Main effect of WM load --
+lsmeans(STvsDT_model_3, pairwise ~ WMLOAD | INTERVAL)
+
+# -- Main effect of Feedback --
+lsmeans(STvsDT_model_3, pairwise ~ INTERVAL | WMLOAD)
+    
+# -- Main effect of Interaction WM load / Feedback --
+contrast(lsmeans(STvsDT_model_3, pairwise ~ WMLOAD | INTERVAL),
+         interaction = "pairwise")
+
+
+v2 <- visreg(STvsDT_model_3, "INTERVAL", by = "WMLOAD", overlay = TRUE)
+plot(v2,
+     main = "Regression model Single task vs Dual task",
+     xlab = "Objective duration (s)",
+     ylab = "Subjective duration deviation (s)",
+     ylim = c(-80, 80),
+     yaxt = "n",
+     overlay = TRUE,
+     points.par = list(col = cbPalette2),
+     line.par = list(col = cbPalette2, lwd = 5),
+     legend = FALSE)
+axis(2, at = seq(-80, 80, 10), las = 2)
+abline(h = 0, lty = 2, lwd = 3)
+legend("bottomleft", legend = c("Single task", "Dual task"),
+       fill = cbPalette2, border = cbPalette2, bty = "n")
+```
+<br><br>
+
+
+# MODEL TESTING | SUBJECTIVE DURATION VARIANCE | ST vs DT
+***
+```{r}
+var_model_0 <- lmer(VAR ~ 1 + (1 | SUBJ), data = var_ST.DT)
+var_model_1 <- lmer(VAR ~ INTERVAL + (1 | SUBJ), data = var_ST.DT)
+
+lrtest(var_model_0, var_model_1)
+AIC(var_model_0, var_model_1)
+
+var_model_2 <- lmer(VAR ~ INTERVAL + WMLOAD + (1 | SUBJ), data = var_ST.DT)
+
+lrtest(var_model_1, var_model_2)
+AIC(var_model_1, var_model_2)
+
+var_model_3 <- lmer(VAR ~ INTERVAL * WMLOAD + (1 | SUBJ), data = var_ST.DT)
+
+lrtest(var_model_2, var_model_3)
+AIC(var_model_2, var_model_3)
+
+# ----- Pairwise comparisons ----------------------
+# -- Main effect of Duration --
+lsmeans(var_model_3, pairwise ~ INTERVAL | WMLOAD)
+lsmeans(var_model_3, revpairwise ~ INTERVAL | WMLOAD)
+
+# -- Main effect of WM load --
+lsmeans(var_model_3, pairwise ~ WMLOAD | INTERVAL)
+```
+<br><br>
+
+
+# MODEL TESTING | CV | ST vs DT
+***
+```{r}
+cv_model_0 <- lmer(CV ~ 1 + (1 | SUBJ),
+                   data = clean_ST.DT_cv, REML = FALSE)
+cv_model_1 <- lmer(CV ~ WMLOAD + (1 | SUBJ),
+                   data = clean_ST.DT_cv, REML = FALSE)
+
+lrtest(cv_model_0, cv_model_1)
+AIC(cv_model_0, cv_model_1)
+
+cv_model_2 <- lmer(CV ~ WMLOAD + INTERVAL + (1 | SUBJ),
+                   data = clean_ST.DT_cv, REML = FALSE)
+
+lrtest(cv_model_1, cv_model_2)
+AIC(cv_model_1, cv_model_2)
+
+cv_model_3 <- lmer(CV ~ WMLOAD * INTERVAL + (1 | SUBJ),
+                   data = clean_ST.DT_cv, REML = FALSE)
+
+lrtest(cv_model_2, cv_model_3)
+AIC(cv_model_2, cv_model_3)
+
+# ----- Pairwise comparisons ----------------------
+# -- Main effect of WM load -----------------------
+lsmeans(cv_model_3, pairwise ~ WMLOAD | INTERVAL)
+lsmeans(cv_model_1, pairwise ~ WMLOAD)
+```
+<br><br>
+
+
+# MODEL TESTNG | SUBJECTIVE DURATION DEVIATION | ST / DT[n-back]
+***
+```{r}
+# == Merged groups ==
+TIME_model_merged_0 <- lmer(Norm_Est ~ 1 + (1 | SUBJ_ID),
+                            data = subset(merged_ST.DT, WMLOAD != "ST"),
+                            REML = FALSE)
+TIME_model_merged_1 <- lmer(Norm_Est ~ WMLOAD + (1 | SUBJ_ID),
+                            data = subset(merged_ST.DT, WMLOAD != "ST"),
+                            REML = FALSE)
+
+lrtest(TIME_model_merged_0, TIME_model_merged_1)
+AIC(TIME_model_merged_0, TIME_model_merged_1)
+
+TIME_model_merged_2 <- lmer(Norm_Est ~ WMLOAD + INTERVAL + (1 | SUBJ_ID),
+                            data = subset(merged_ST.DT, WMLOAD != "ST"),
+                            REML = FALSE)
+
+lrtest(TIME_model_merged_1, TIME_model_merged_2)
+AIC(TIME_model_merged_1, TIME_model_merged_2)
+
+TIME_model_merged_3 <- lmer(Norm_Est ~ WMLOAD * INTERVAL + (1 | SUBJ_ID),
+                            data = subset(merged_ST.DT, WMLOAD != "ST"),
+                            REML = FALSE)
+
+lrtest(TIME_model_merged_2, TIME_model_merged_3)
+AIC(TIME_model_merged_2, TIME_model_merged_3)
+
+plot(fitted(TIME_model_merged_3),
+     residuals(TIME_model_merged_3),
+     xlab = "Fitted values",
+     ylab = "Residuals")
+abline(h = 0, lty = 2)
+lines(smooth.spline(fitted(TIME_model_merged_3),
+                    residuals(TIME_model_merged_3)),
+      col = "red")
+
+# ----- Pairwise comparisons ----------------------
+# -- Main effect of WM load --
+lsmeans(TIME_model_merged_3, pairwise ~ WMLOAD | INTERVAL)
+
+# -- Main effect of Feedback --
+lsmeans(TIME_model_merged_3, pairwise ~ INTERVAL | WMLOAD)
+    
+# -- Main effect of Interaction WM load / Feedback --
+contrast(lsmeans(TIME_model_merged_3, pairwise ~ WMLOAD | INTERVAL),
+         interaction = "pairwise")
+```
+<br><br>
+
+
+# MODEL TESTNG | SUBJECTIVE DURATION DEVIATION | ST / DT[n-back] | Feedback vs No Feedback
+***
+```{r}
+# == Feedback =============
+# =========================
+TIME_model_fdbck_0 <- lmer(Norm_Est ~ 1 + (1 | SUBJ_ID),
+                           data = subset(merged_ST.DT, WMLOAD != "ST" & COND == "Fdbck"),
+                           REML = FALSE)
+TIME_model_fdbck_1 <- lmer(Norm_Est ~ WMLOAD + (1 | SUBJ_ID),
+                           data = subset(merged_ST.DT, WMLOAD != "ST" & COND == "Fdbck"),
+                           REML = FALSE)
+
+lrtest(TIME_model_fdbck_0, TIME_model_fdbck_1)
+AIC(TIME_model_fdbck_0, TIME_model_fdbck_1)
+
+TIME_model_fdbck_2 <- lmer(Norm_Est ~ WMLOAD + INTERVAL + (1 | SUBJ_ID),
+                           data = subset(merged_ST.DT, WMLOAD != "ST" & COND == "Fdbck"),
+                           REML = FALSE)
+
+lrtest(TIME_model_fdbck_1, TIME_model_fdbck_2)
+AIC(TIME_model_fdbck_1, TIME_model_fdbck_2)
+
+TIME_model_fdbck_3 <- lmer(Norm_Est ~ WMLOAD * INTERVAL + (1 | SUBJ_ID),
+                           data = subset(merged_ST.DT, WMLOAD != "ST" & COND == "Fdbck"),
+                           REML = FALSE)
+
+lrtest(TIME_model_fdbck_2, TIME_model_fdbck_3)
+AIC(TIME_model_fdbck_2, TIME_model_fdbck_3)
+
+plot(fitted(TIME_model_fdbck_3), residuals(TIME_model_fdbck_3),
+     xlab = "Fitted values",
+     ylab = "Residuals")
+abline(h = 0, lty = 2)
+lines(smooth.spline(fitted(TIME_model_fdbck_3),
+                    residuals(TIME_model_fdbck_3)),
+      col = "red")
+
+# ----- Pairwise comparisons ----------------------
+# -- Main effect of WM load --
+lsmeans(TIME_model_fdbck_3, pairwise ~ WMLOAD | INTERVAL)
+
+# -- Main effect of Feedback --
+lsmeans(TIME_model_fdbck_3, pairwise ~ INTERVAL | WMLOAD)
+    
+# -- Main effect of Interaction WM load / Feedback --
+contrast(lsmeans(TIME_model_fdbck_3, pairwise ~ WMLOAD | INTERVAL),
+         interaction = "pairwise")
+
+
+# == No Feedback =============
+# ============================
+TIME_model_NoFdbck_0 <- lmer(Norm_Est ~ 1 + (1 | SUBJ_ID),
+                             data = subset(merged_ST.DT, WMLOAD != "ST" & COND == "NoFdbck"),
+                             REML = FALSE)
+TIME_model_NoFdbck_1 <- lmer(Norm_Est ~ WMLOAD + (1 | SUBJ_ID),
+                             data = subset(merged_ST.DT, WMLOAD != "ST" & COND == "NoFdbck"),
+                             REML = FALSE)
+
+lrtest(TIME_model_NoFdbck_0, TIME_model_NoFdbck_1)
+AIC(TIME_model_NoFdbck_0, TIME_model_NoFdbck_1)
+
+TIME_model_NoFdbck_2 <- lmer(Norm_Est ~ WMLOAD + INTERVAL + (1 | SUBJ_ID),
+                             data = subset(merged_ST.DT, WMLOAD != "ST" & COND == "NoFdbck"),
+                             REML = FALSE)
+
+lrtest(TIME_model_NoFdbck_1, TIME_model_NoFdbck_2)
+AIC(TIME_model_NoFdbck_1, TIME_model_NoFdbck_2)
+
+TIME_model_NoFdbck_3 <- lmer(Norm_Est ~ WMLOAD * INTERVAL + (1 | SUBJ_ID),
+                             data = subset(merged_ST.DT, WMLOAD != "ST" & COND == "NoFdbck"),
+                             REML = FALSE)
+
+lrtest(TIME_model_NoFdbck_2, TIME_model_NoFdbck_3)
+AIC(TIME_model_NoFdbck_2, TIME_model_NoFdbck_3)
+
+plot(fitted(TIME_model_NoFdbck_3), residuals(TIME_model_NoFdbck_3),
+     xlab = "Fitted values",
+     ylab = "Residuals")
+abline(h = 0, lty = 2)
+lines(smooth.spline(fitted(TIME_model_NoFdbck_3),
+                    residuals(TIME_model_NoFdbck_3)), col = "red")
+
+# ----- Pairwise comparisons ----------------------
+# -- Main effect of WM load --
+lsmeans(TIME_model_NoFdbck_3, pairwise ~ WMLOAD | INTERVAL)
+
+# -- Main effect of Feedback --
+lsmeans(TIME_model_NoFdbck_3, pairwise ~ INTERVAL | WMLOAD)
+    
+# -- Main effect of Interaction WM load / Feedback --
+contrast(lsmeans(TIME_model_NoFdbck_3, pairwise ~ WMLOAD | INTERVAL),
+         interaction = "pairwise")
+```
+<br><br>
+
+
+# MODEL TESTNG | CV | DT[n-back]
+***
+```{r}
+cv_WMLOAD_model_0 <- lmer(CV ~ 1 + (1 | SUBJ),
+                          data = clean_DTnback_cv,
+                          REML = FALSE)
+cv_WMLOAD_model_1 <- lmer(CV ~ WMLOAD + (1 | SUBJ),
+                          data = clean_DTnback_cv,
+                          REML = FALSE)
+
+lrtest(cv_WMLOAD_model_0, cv_WMLOAD_model_1)
+AIC(cv_WMLOAD_model_0, cv_WMLOAD_model_1)
+
+cv_WMLOAD_model_2 <- lmer(CV ~ WMLOAD + INTERVAL + (1 | SUBJ),
+                          data = clean_DTnback_cv,
+                          REML = FALSE)
+
+lrtest(cv_WMLOAD_model_1, cv_WMLOAD_model_2)
+AIC(cv_WMLOAD_model_1, cv_WMLOAD_model_2)
+
+summary(cv_WMLOAD_model_1)
+lsmeans(cv_WMLOAD_model_1, pairwise ~ WMLOAD)
+```
+<br><br>
