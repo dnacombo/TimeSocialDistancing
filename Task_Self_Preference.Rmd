@@ -1,0 +1,155 @@
+---
+title: "Extracting data for Self Preference task"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    toc: yes
+params:
+  experimentID: [15096,16303]
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+
+---
+
+
+```{r, message=F}
+library(tidyverse)
+library(ggbeeswarm)
+library(plotrix)
+source('helpers.R')
+```
+
+```{r, message=F}
+
+datadir = file.path(params$rootdir,paste0('data_exp_', paste(params$experimentID,collapse='-'), '_', ExperimentName[1]))
+
+outdir = paste(datadir,'processed',sep='_')
+dir.create(outdir,showWarnings = F)
+
+experimentID <- params$experimentID
+
+datafiles <- list.files(datadir,'S1_SelfPref_r.*.csv',full.names = T)
+
+tmpdir <- file.path(params$rootdir,'.tmp')
+unlink(tmpdir,recursive=T)
+
+if (is_empty(datafiles)){
+  print('No Implicit data')
+  knitr::knit_exit()
+  }
+
+```
+
+### Read and describe data
+
+```{r, warning=F}
+
+orig <- T_read(datafiles) %>%
+  mutate(Run = as.factor(str_replace(File,'S._SelfPref_r(.).csv','\\1')),
+         `Reaction Time` = as.numeric(`Reaction Time`))
+
+N <- T_Nsuj(orig)
+
+
+```
+
+Number of participants who completed this task:
+`r N`
+
+```{r}
+
+T_Complete(orig)
+
+```
+
+### Extracting data
+
+```{r}
+
+(data_in_shape <- orig %>%
+   
+  dplyr::filter(`Zone Type` == 'response_button_text') %>%
+   
+  mutate(stimulus = ifelse(stim=="rect.png", "R", ifelse(stim=="triangle.png", "T", ifelse(stim=="penta.png", "P",999))),
+         question = ifelse(who == "AMI", "friend", ifelse(who == "VOUS", "you", ifelse(who == "AUTRE", "other", 999))),
+         Response = ifelse(Response=="VRAI", "TRUE", ifelse(Response=="FAUX","FALSE",999)),
+         correct = ifelse(Response==answer, 1, 0)) %>%
+
+  dplyr::select(`Participant Private ID`,`Local Date`,`Participant Status`,Run,Response,
+         stimulus,question,correct,`Reaction Time`,`Task Version`,`Experiment ID`) %>%
+  
+  write_csv(file.path(outdir,'S1_SelfPref.csv')))
+```
+
+
+```{r}
+plot_box = ggplot(data = data_in_shape,aes(x=question,y=`Reaction Time`)) +
+  geom_boxplot() +
+  theme(axis.text.x = element_text(colour = "black",size=12), axis.text.y = element_text(colour = "black",size = 12),panel.grid.major = element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black",size=0.5),axis.ticks =element_line(colour = "black",size=0.5) , 
+        axis.title.x= element_text(size = 14),axis.title.y = element_text(size = 14)) 
+plot_box
+
+plot_dist = ggplot(data = data_in_shape,aes(`Reaction Time`,group = question, color = question)) +
+  geom_density() +
+  #scale_x_log10()+
+  theme(axis.text.x = element_text(colour = "black",size=12), axis.text.y = element_text(colour = "black",size = 12),panel.grid.major =   element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black",size=0.5),axis.ticks =element_line(colour = "black",size=0.5) , 
+        axis.title.x= element_text(size = 14),axis.title.y = element_text(size = 14)) 
+plot_dist
+
+```
+
+```{r}
+data_in_shape.sum = 
+  dplyr::filter(data_in_shape, `Participant Status` == "complete",correct ==1) %>%
+  group_by(`Participant Private ID`, question) %>%
+  summarize(medRT = median(`Reaction Time`))
+  
+data_in_shape.grand.av =
+  group_by(data_in_shape.sum, question) %>%
+  summarize(sd_errorRT = std.error(medRT), meanRT = mean(medRT))
+  
+plot.summary = ggplot(data = data_in_shape.sum, aes(question, medRT))+
+  geom_boxplot(width = 0.5) + 
+  ylab("Response Time (ms)") + 
+  xlab("") +
+
+  theme(axis.text.x = element_text(colour = "black",size=14), axis.text.y = element_text(colour = "black",size = 11),panel.grid.major =   element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black",size=0.5),axis.ticks =element_line(colour = "black",size=0.5) , 
+        axis.title.x= element_text(size = 14),axis.title.y = element_text(size = 14)) 
+
+  plot.summary
+  
+plot.average = ggplot(data = dplyr::filter(data_in_shape.grand.av,correct==1), aes(question, meanRT))+
+  geom_col(width = 0.1,fill = NA,color = 1) + 
+  ylab("Average RT (ms)") + 
+  xlab("") +
+  geom_errorbar(aes(ymin = meanRT - sd_errorRT, ymax = meanRT + sd_errorRT), width = 0.0001) + 
+  theme(axis.text.x = element_text(colour = "black",size=12), axis.text.y = element_text(colour = "black",size = 12),panel.grid.major =   element_blank(), panel.grid.minor = element_blank(),
+        panel.background = element_blank(), axis.line = element_line(colour = "black",size=0.5),axis.ticks =element_line(colour = "black",size=0.5) , 
+        axis.title.x= element_text(size = 14),axis.title.y = element_text(size = 14)) 
+
+  plot.average
+```
+
+```{r}
+library(lme4)
+library(lmerTest)
+library(emmeans)
+
+model <- lmer(log10(`Reaction Time`) ~ question + (1 | `Participant Private ID`), data = dplyr::filter(data_in_shape, correct =1))
+
+anova(model)
+summary(model)
+em <- summary(emmeans(model,specs = ~ question),type = 'response',bias.adj = T)
+
+
+
+```
+
+
+
+
