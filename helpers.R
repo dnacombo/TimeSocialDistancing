@@ -43,9 +43,10 @@ Q_read <- function(datafiles) {
 
 
 Q_Nsuj <- function(orig){
-  
   N <- orig %>% filter(`Question Key` %in% 'END QUESTIONNAIRE') %>%
+    select(`Participant Private ID`,File,`Experiment ID`) %>%
     group_by(File,`Experiment ID`) %>%
+    distinct() %>%
     summarize(N = n())
 }
 
@@ -77,9 +78,10 @@ T_read <- function(datafiles) {
 }
 
 T_Nsuj <- function(orig){
-  
   N <- orig %>% filter(`Trial Number` %in% 'END TASK') %>%
+    select(`Participant Private ID`,File,`Experiment ID`) %>%
     group_by(File,`Experiment ID`) %>%
+    distinct() %>%
     summarize(N = n())
 }
 
