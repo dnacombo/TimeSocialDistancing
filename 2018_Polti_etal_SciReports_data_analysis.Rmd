@@ -159,7 +159,7 @@ dprime <- function(H, F) {qnorm(H) - qnorm(F)}
 ```
 ## Beta (Signal Detection Theory)
 ```{r}
-Beta <- function(H, F) {zhr <- qnorm(H)
+Beta <- function(H, F) {zhr <- qnorm(H)}
 ```
 <br><br>
 
@@ -398,7 +398,7 @@ sdt_DV$F.crt[(sdt_DV$F == 0)] <- 1/(2*sdt_DV$CRej[sdt_DV$F == 0])
 
 
 zfar <- qnorm(F)
-exp(-zhr*zhr/2 + zfar*zfar/2)}
+exp(-zhr*zhr/2 + zfar*zfar/2)
 
 sdt_DV$A_prime <- A_prime(sdt_DV$H.crt, sdt_DV$F.crt)
 sdt_DV$B_ppd <- Bppd(sdt_DV$H.crt, sdt_DV$F.crt)
@@ -2426,3 +2426,4 @@ summary(cv_WMLOAD_model_1)
 lsmeans(cv_WMLOAD_model_1, pairwise ~ WMLOAD)
 ```
 <br><br>
+
