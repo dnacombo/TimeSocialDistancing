@@ -1,5 +1,5 @@
 ---
-title: "Extracting data for Task Delay Discouting"
+title: "Extracting data for Task Count Down"
 params:
   experimentID: [15096,16303]
   rootdir: /home/maximilien.chaumon/owncloud/Lab/00-Projects/TimeSocialDistancing/DATA
@@ -27,13 +27,13 @@ dir.create(outdir,showWarnings = F)
 
 experimentID <- params$experimentID
 
-datafiles <- list.files(datadir,'S1_1back_r.*.csv',full.names = T)
+datafiles <- list.files(datadir,'S1_CountDown_r.*.csv',full.names = T)
 
 tmpdir <- file.path(params$rootdir,'.tmp')
 unlink(tmpdir,recursive=T)
 
 if (is_empty(datafiles)){
-  print('No 1back data')
+  print('No CountDown data')
   knitr::knit_exit()
   }
 
@@ -45,7 +45,7 @@ if (is_empty(datafiles)){
 ```{r, warning=F}
 
 orig <- T_read(datafiles) %>%
-  mutate(Run = as.factor(str_replace(File,'S._1back_r(.).csv','\\1')))
+  mutate(Run = as.factor(str_replace(File,'S._CountDown_r(.).csv','\\1')))
 
 N <- T_Nsuj(orig)
 
@@ -66,12 +66,16 @@ T_Complete(orig)
 ```{r}
 
 data_in_shape <- orig %>%
-  filter(display == 'block1back',Attempt == 1) %>%
-  select(Correct,ILI,`Reaction Time`,`Participant Private ID`,`Local Date`,Run) %>%
-  mutate(Correct = as.logical(plyr::mapvalues(Correct,from=c('1','0'),to=c(T,F))),
-         ILI = as.numeric(ILI),
-         `Reaction Time` = as.numeric(`Reaction Time`)) %>%
-    write_csv(file.path(outdir,'S1_1back.csv'))
+  filter(`Zone Name` %in% c('Zone2', 'Zone4')) %>%
+  select(`Participant Private ID`,`Local Date`,Run, timelimit, number, numstep, Response,`Zone Name`) %>%
+  pivot_wider(names_from = `Zone Name`,values_from = Response) %>%
+  rename(FinalNumber = Zone2, EstimatedDuration = Zone4) %>%
+  mutate(timelimit = as.numeric(timelimit),
+         number = as.numeric(number),
+         numstep = as.numeric(numstep),
+         FinalNumber = as.numeric(FinalNumber)
+         ) %>%
+    write_csv(file.path(outdir,'S1_CountDown.csv'))
 ```
 
 
