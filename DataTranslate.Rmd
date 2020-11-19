@@ -36,7 +36,7 @@ HADS_exception <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1KY
 ```{r, warning=F}
 
 # first list all data files, ignore processed ones, extract experimentID and UniqueName
-fs <- list.files(params$rootdir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
+fs <- list.files(params$rootdir,pattern='(S1_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
   filter(! str_detect(fname,'processed')
          # ,str_detect(fname,'BFI')

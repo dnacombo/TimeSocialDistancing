@@ -50,7 +50,7 @@ We retrieve unique task identifiers: column `3` "Gorilla Protocol names" from [t
 
 # output directory is the zip filename plus experiment name
 
-datadir <- file.path(params$rootdir,paste0('data_exp_', paste(as.character(params$experimentID),collapse = '-'), '_', ExperimentName[1]))
+datadir <- file.path(params$rootdir,paste0('data_exp_',paste(as.character(params$experimentID),collapse = '-'), '_', ExperimentName[1], '_Session',unique(Session)))
 
 # remove eventual previous output in that directory
 unlink(datadir,recursive=T)
@@ -67,6 +67,11 @@ fs <- list.files(tmpdir,full.names = T,recursive = T)
 dir.create(datadir)
 
 for (f in fs) {
+  # if (grepl('7b1e',f)) {stop()}
+  if (file.size(f) < 400) {
+    file.remove(f)
+    next
+    }
   d <- switch(tools::file_ext(f),
               csv = read_csv(f,col_types = cols()),
               xlsx = readxl::read_excel(f)) %>%
@@ -77,9 +82,9 @@ for (f in fs) {
     # cat(paste('No data for', basename(f)),sep='\n')
     file.remove(f)
     next
-  }
-  
-  CurrNode <- filter(allnodes,get(ExperimentName) == gsub('.*-([[:alnum:]]{4})','\\1',unique(d$`Tree Node Key`)))
+  } 
+
+  CurrNode <- filter(allnodes,Session == globalenv()$Session,get(ExperimentName) == gsub('.*-([[:alnum:]]{4})','\\1',unique(d$`Tree Node Key`)))
   
   if (nrow(CurrNode) == 0 ){
     cat(paste('Could not locate task for',basename(f), ':', unique(d$`Task Name`)),sep='\n')

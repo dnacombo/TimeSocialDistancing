@@ -3,12 +3,19 @@ library(tidyverse)
 if (file.exists(f <- file.path(params$rootdir,'NodeKeys.csv')))   {
   allnodes <- read_csv(f,col_types = cols())
 } else {
-  allnodes <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
-    # rename columns of interest with simple names
-    rename(order = 1,
-           UniqueName = 4) %>%
-    # discard the comment line at the beginning of the table
-    filter(order != 'Comment') %>%
+  allnodes.S1 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
+    filter(prefix != 'Comment')
+  
+  allnodes.S2 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=1606433485') %>%
+    filter(prefix != 'Comment')
+  
+  allnodes.S3 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=1814296211') %>%
+    filter(prefix != 'Comment')
+
+  (allnodes <- bind_rows(allnodes.S1,
+                        allnodes.S2,
+                        allnodes.S3,.id = "Session")%>%
+    mutate_all(.funs = ~ na_if(.,'N/A'))) %>%
     write_csv(f)
 }
 
@@ -17,6 +24,7 @@ if (file.exists(f <- file.path(params$rootdir,'ExperimentIDs.csv')))   {
   experimentIDs <- read_csv(f,col_types = cols())
 } else {
   experimentIDs <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
+    pivot_longer(cols=starts_with('Session'),names_to = 'Session', values_to = 'Experiment ID',names_prefix = 'Session',values_drop_na = T) %>%
     write_csv(f)
 }
 
@@ -24,6 +32,8 @@ if (!is_null(params$experimentID)) {
   ExperimentName <- dplyr::filter(experimentIDs,`Experiment ID` %in% params$experimentID)$ExperimentName
 }else{ ExperimentName <- NULL
 }
+Session <- dplyr::filter(experimentIDs,`Experiment ID` %in% params$experimentID)$Session
+if (length(unique(Session)) > 1) { stop('experimentIDs match several sessions. Make sure you only import one session at a time.')}
 
 
 Q_cols <- cols(`Participant Private ID` = col_factor())
