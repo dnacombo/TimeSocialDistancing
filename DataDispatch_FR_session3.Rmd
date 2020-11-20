@@ -1,0 +1,48 @@
+---
+title: "Data FR"
+params:
+  ExperimentID: [16143]
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+---
+
+```{r, message=F}
+library(tidyverse)
+source('helpers.R')
+
+```
+
+# Unzipping data
+```{r child='DataUnzip.Rmd'}
+
+```
+
+
+<!-- # Questionnaire ASQ -->
+<!-- ```{r, child='Questionnaire_ASQ.Rmd'} -->
+
+<!-- ``` -->
+
+<!-- # Questionnaire BFI-10 -->
+<!-- ```{r, child='Questionnaire_BFI-10.Rmd'} -->
+
+<!-- ``` -->
+
+<!-- # Questionnaire HADS -->
+<!-- ```{r, child='Questionnaire_HADS.Rmd'} -->
+
+<!-- ``` -->
+
+<!-- # Task Delay Discounting -->
+<!-- ```{r, child='Task_DelayDiscounting.Rmd'} -->
+
+<!-- ``` -->
+
