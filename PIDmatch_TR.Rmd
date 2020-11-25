@@ -1,0 +1,117 @@
+---
+title: "PIDmatch"
+output:
+  html_notebook: 
+    code_folding: hide
+    df_print: paged
+    toc: yes
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+params:
+  ExperimentName: TR
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+---
+
+```{r}
+library(tidyverse)
+source('helpers.R')
+
+datadir <- tibble(fname = list.files(params$rootdir,paste0('data_exp_[^\\.]+Session[0-9]+$'),include.dirs = T) ) %>%
+  filter(! str_detect(fname,'processed'),
+         str_detect(fname,ExperimentName))
+
+
+```
+
+
+```{r}
+fs <- sapply(datadir,function(x){list.files(path=file.path(params$rootdir,x),pattern='S._Welcome.csv',full.names = T)})
+
+PIDs <- tibble(PID=character(),email=character(),Session=character(),`Participant Private ID`=character())
+# googlesheets4::read_sheet('https://docs.google.com/spreadsheets/d/1CVhBYlWVuL9G48NgWxaIJ-9o5B7YPfrHGE6T2oVgcQA/edit?ts=5faff96a',sheet = ExperimentName) %>%
+# mutate_all(as.character) %>%
+# pivot_longer(cols = starts_with('Session'),names_to = 'Session', values_to = 'Participant Private ID',names_prefix = 'Session') %>%
+# filter(!is.na(`Participant Private ID`))
+
+for (f in fs) {
+  Session <- str_match(basename(f),'S(\\d)')[2]
+  PID <- read_csv(f,col_types = cols(.default = col_character())) %>%
+    filter(`Question Key` %in% c('PID', 'email')) %>%
+    pivot_wider(id_cols = c(`Participant Private ID`,`Experiment ID`)  ,names_from = `Question Key`, values_from = Response) %>%
+    mutate(Session = Session,
+           ExperimentName = ExperimentName,
+           PID = str_to_lower(PID))
+  
+  
+  PIDs <- bind_rows(PIDs,PID) %>%
+    distinct() %>%
+    select(`Experiment ID`,	`ExperimentName`,	`email`,	`PID`,everything())
+}
+
+matched_by_PID <- pivot_wider(PIDs,id_cols = PID,names_from = Session,values_from = `Participant Private ID`, 
+                              names_prefix = 'Session',
+                              values_fn = function(x){do.call('paste',list(x,collapse = ' '))}) %>%
+  left_join(select(PIDs,email,PID),by='PID')
+
+matched_by_email <- pivot_wider(PIDs,id_cols = email,names_from = Session,values_from = `Participant Private ID`, 
+                                names_prefix = 'Session',
+                                values_fn = function(x){do.call('paste',list(x,collapse = ' '))})
+
+cn <- tibble(cols = colnames(matched_by_PID)) %>%filter(str_detect(cols,'^Session'))
+
+nuPIDs <- right_join(matched_by_PID,
+                      matched_by_email,
+                      by = 'email') %>%
+    distinct()
+for (isess in cn$cols) {
+  nuPIDs <- nuPIDs %>% 
+    unite(col = !!isess,starts_with(isess),sep=' ')
+  }
+(nuPIDs <- nuPIDs %>%
+    mutate_at(.vars = vars(starts_with('Session')),~ str_replace_all(.,'NA ?','')) %>%
+    mutate_at(.vars = vars(starts_with('Session')),~ str_trim(str_replace_all(.,'([^ ]+) ([0-9]* )?\\1','\\1 '))) %>%
+    select(PID,everything()))%>%
+  distinct() %>%
+  select(-email) %>%
+  write_csv(file.path(params$rootdir,paste0('AllPID_',ExperimentName[1], '.csv')),na='')
+print(nuPIDs)
+```
+# count subjects
+```{r}
+options(dplyr.summarise.inform=F)
+PIDs %>% group_by(Session) %>%
+  summarize(n = n()) %>%
+  ggplot(aes(x=Session,y=n,fill=Session,label=n)) +
+  geom_col() +
+  geom_text(position = position_stack(vjust = 0.5)) +
+  ggtitle('Number of participants per session')
+```
+```{r}
+nuPIDs %>%
+  group_by(PID) %>%
+  filter(n() > 1)
+```
+```{r}
+dupem <- nuPIDs %>%
+  group_by(PID) %>%
+  filter(n() > 1) %>%
+  .$email
+
+matched_by_email %>% filter(email %in% dupem)
+```
+```{r}
+nuPIDs %>%
+  group_by(email) %>%
+  filter(n() > 1) %>%
+  arrange(email)
+```
+```{r}
+duppid <- nuPIDs %>%
+  group_by(email) %>%
+  filter(n() > 1) %>%
+  .$PID
+
+matched_by_PID %>% filter(PID %in% duppid)
+```
