@@ -73,7 +73,7 @@ for (f in fs) {
     next
     }
   d <- switch(tools::file_ext(f),
-              csv = read_csv(f,col_types = cols()),
+              csv = read_csv(f,col_types = cols(.default = col_character())),
               xlsx = readxl::read_excel(f)) %>%
     filter(!is.na(`Task Name`))
   # print(f)
