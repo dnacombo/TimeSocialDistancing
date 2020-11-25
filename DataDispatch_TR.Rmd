@@ -1,7 +1,7 @@
 ---
 title: "Data TR"
 params:
-  experimentID: 16144
+  ExperimentID: 16144
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:

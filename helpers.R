@@ -21,20 +21,24 @@ if (file.exists(f <- file.path(params$rootdir,'NodeKeys.csv')))   {
 
 
 if (file.exists(f <- file.path(params$rootdir,'ExperimentIDs.csv')))   {
-  experimentIDs <- read_csv(f,col_types = cols())
+  ExperimentIDs <- read_csv(f,col_types = cols())
 } else {
-  experimentIDs <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
+  ExperimentIDs <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
     pivot_longer(cols=starts_with('Session'),names_to = 'Session', values_to = 'Experiment ID',names_prefix = 'Session',values_drop_na = T) %>%
     write_csv(f)
 }
 
-if (!is_null(params$experimentID)) {
-  ExperimentName <- dplyr::filter(experimentIDs,`Experiment ID` %in% params$experimentID)$ExperimentName
-}else{ ExperimentName <- NULL
+if (!is_null(params$ExperimentID)) {
+  ExperimentID <- params$ExperimentID
+  ExperimentName <- dplyr::filter(ExperimentIDs,`Experiment ID` %in% params$ExperimentID)$ExperimentName
+}else{
+  if (!is_null(params$ExperimentName)) {
+    ExperimentName <- params$ExperimentName
+    ExperimentID <- dplyr::filter(ExperimentIDs,ExperimentName == params$ExperimentName)$`Experiment ID`
+  }else {stop('Give either ExperimentName or Experiment ID')}
+  
 }
-Session <- dplyr::filter(experimentIDs,`Experiment ID` %in% params$experimentID)$Session
-if (length(unique(Session)) > 1) { stop('experimentIDs match several sessions. Make sure you only import one session at a time.')}
-
+Session <- dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$Session
 
 Q_cols <- cols(`Participant Private ID` = col_factor())
 

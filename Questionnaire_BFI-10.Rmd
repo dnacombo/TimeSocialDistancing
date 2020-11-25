@@ -8,7 +8,7 @@ output:
     code_folding: hide
     toc: yes
 params:
-  experimentID: 15575
+  ExperimentID: 15575
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 ---
 
@@ -19,11 +19,9 @@ source('helpers.R')
 
 ```{r, message=F}
 
-datadir = file.path(params$rootdir,paste0('data_exp_', paste(params$experimentID,collapse='-'), '_', ExperimentName[1]))
+datadir = file.path(params$rootdir,paste0('data_exp_', paste(ExperimentID,collapse='-'), '_', ExperimentName[1]))
 outdir = paste(datadir,'processed',sep='_')
 dir.create(outdir,showWarnings = F)
-
-experimentID <- params$experimentID
 
 datafile <- list.files(datadir,'S1_BFI.csv',full.names = T)
 
