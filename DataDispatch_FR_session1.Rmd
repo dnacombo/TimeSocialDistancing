@@ -1,5 +1,5 @@
 ---
-title: "Data FR"
+title: "Data FR Session 1"
 params:
   experimentID: [15096,16303]
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
