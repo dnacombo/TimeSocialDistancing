@@ -1,0 +1,66 @@
+---
+title: "Data 3 sessions"
+params:
+  ExperimentName: FR
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+---
+
+```{r, message=F}
+library(tidyverse)
+source('helpers.R')
+
+```
+
+
+### Match PIDs across sessions
+
+
+```{r}
+source_rmd('PIDmatch.Rmd')
+```
+
+
+```{r}
+
+suppressWarnings(
+  PIDs <- read_csv(file.path(params$rootdir,paste0('AllPID_',params$ExperimentName,'.csv')),col_types = cols()) %>%
+  unite('PID',starts_with('Session'),sep=' ',remove=F) %>%
+  mutate(PID = str_replace_all(PID,'NA ?',''), # remove NAs
+         PID = str_replace(PID,' .*','')) %>%   # discard all but the first PID
+  separate(Session1,sprintf('S1_%d',1:5)) %>%
+  separate(Session2,sprintf('S2_%d',1:5)) %>%
+  separate(Session3,sprintf('S3_%d',1:5)) %>%
+  pivot_longer(cols = starts_with('S'),values_to = 'origPID') %>%
+  filter(!is.na(origPID)) %>%
+  select(-name)
+)
+
+n <- PIDs$origPID
+PIDs <- PIDs$PID
+names(PIDs) <- n    
+
+datadir <- tibble(fname = list.files(params$rootdir,paste0('data_exp_[^\\.]+Session[0-9]+$'),include.dirs = T) ) %>%
+  filter(! str_detect(fname,'processed'),
+         str_detect(fname,ExperimentName))
+
+fs <- sapply(datadir,function(x){list.files(path=file.path(params$rootdir,x),pattern='S._.*.csv',full.names = T)})
+fs <- fs[!str_detect(fs,'PID.csv')]
+
+for (f in fs) {
+  print(f)
+  Session <- str_match(basename(f),'S(\\d)')[2]
+  read_csv(f,col_types = cols(.default = col_character())) %>%
+    mutate(PID = recode(`Participant Private ID`,!!!PIDs)) %>%
+    write_csv(f)
+}
+```
+
