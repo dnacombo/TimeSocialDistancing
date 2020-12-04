@@ -25,31 +25,30 @@ source('helpers.R')
 
 ```
 
-# collect to be translated materials
+<!-- # collect to be translated materials -->
 
-```{r child='DataTranslate.Rmd'}
+<!-- ```{r child='DataTranslate.Rmd'} -->
 
-```
-
-
-# Questionnaire ASQ
-```{r, child='Questionnaire_ASQ.Rmd'}
-
-```
-
-# Questionnaire BFI-10
-```{r, child='Questionnaire_BFI-10.Rmd'}
-
-```
-
-# Questionnaire HADS
-```{r, child='Questionnaire_HADS.Rmd'}
-
-```
+<!-- ``` -->
 
 
-# Task Delay Discounting
-```{r, child='Task_DelayDiscounting.Rmd'}
+<!-- # Questionnaire ASQ -->
+<!-- ```{r, child='Questionnaire_ASQ.Rmd'} -->
 
-```
-  
+<!-- ``` -->
+
+<!-- # Questionnaire BFI-10 -->
+<!-- ```{r, child='Questionnaire_BFI-10.Rmd'} -->
+
+<!-- ``` -->
+
+<!-- # Questionnaire HADS -->
+<!-- ```{r, child='Questionnaire_HADS.Rmd'} -->
+
+<!-- ``` -->
+
+
+<!-- # Task Delay Discounting -->
+<!-- ```{r, child='Task_DelayDiscounting.Rmd'} -->
+
+<!-- ``` -->
