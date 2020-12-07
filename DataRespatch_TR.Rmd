@@ -130,8 +130,11 @@ patch <- read_tsv("123456	acaliskan127@gmail.com	1303562	1596049
 123456	nkapoglu17@ku.edu.tr	1425546	1916408
 123456	fyardimci17@ku.edu.tr	1454132	NA",col_names = c('PID', 'email', 'Session1', 'Session2'),col_types=cols(.default=col_character()))
 
-nuPIDs <- nuPIDs %>% filter(! email %in% dupem) %>%
-  bind_rows(patch)
+(nuPIDs <- nuPIDs %>% filter(! email %in% dupem) %>%
+  bind_rows(patch)) %>%
+  select(-email,-PID) %>%
+  distinct() %>%
+  write_csv(file.path(params$rootdir,paste0('AllPID_',ExperimentName[1], '.csv')),na='')
 
 ```
 
@@ -152,7 +155,7 @@ Add a PID column to the data, with unique ID for each participant (the first pri
 ```{r}
 
 suppressWarnings(
-  PIDs <- read_csv(file.path(params$rootdir,paste0('AllPID_',params$ExperimentName,'.csv')),col_types = cols()) %>%
+  PIDs <- nuPIDs %>% select(-PID,-email) %>% distinct() %>%
   unite('PID',starts_with('Session'),sep=' ',remove=F) %>%
   mutate(PID = str_replace_all(PID,'NA ?',''), # remove NAs
          PID = str_replace(PID,' .*','')) %>%   # discard all but the first PID
@@ -160,7 +163,8 @@ suppressWarnings(
   separate(Session2,sprintf('S2_%d',1:5)) %>%
   pivot_longer(cols = starts_with('S'),values_to = 'origPID') %>%
   filter(!is.na(origPID)) %>%
-  select(-name)
+  select(-name) %>%
+    filter(origPID != "")
 )
 
 
