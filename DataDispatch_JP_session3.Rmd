@@ -1,7 +1,7 @@
 ---
-title: "Data JP"
+title: "Data JP session3"
 params:
-  experimentID: 16612
+  ExperimentID: 25567
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
@@ -25,21 +25,21 @@ source('helpers.R')
 
 ```
 
-  
-# Questionnaire ASQ
-```{r, child='Questionnaire_ASQ.Rmd'}
 
-```
+<!-- # Questionnaire ASQ -->
+<!-- ```{r, child='Questionnaire_ASQ.Rmd'} -->
 
-# Questionnaire BFI-10
-```{r, child='Questionnaire_BFI-10.Rmd'}
+<!-- ``` -->
 
-```
+<!-- # Questionnaire BFI-10 -->
+<!-- ```{r, child='Questionnaire_BFI-10.Rmd'} -->
 
-# Questionnaire HADS
-```{r, child='Questionnaire_HADS.Rmd'}
+<!-- ``` -->
 
-```
+<!-- # Questionnaire HADS -->
+<!-- ```{r, child='Questionnaire_HADS.Rmd'} -->
+
+<!-- ``` -->
 
 <!-- # Task Delay Discounting -->
 <!-- ```{r, child=NULL} -->
