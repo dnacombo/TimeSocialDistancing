@@ -4,11 +4,11 @@ params:
   ExperimentName: JP
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
-  html_notebook:
+  html_document:
     code_folding: hide
     df_print: paged
     toc: yes
-  html_document:
+  html_notebook:
     code_folding: hide
     df_print: paged
     toc: yes

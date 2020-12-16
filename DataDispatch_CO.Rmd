@@ -1,7 +1,7 @@
 ---
 title: "Data CO"
 params:
-  experimentID: [16271, 16272]
+  ExperimentID: [16271, 16272]
 
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
@@ -27,23 +27,23 @@ source('helpers.R')
 ```
 
 
-# Questionnaire ASQ
-```{r, child='Questionnaire_ASQ.Rmd'}
+<!-- # Questionnaire ASQ -->
+<!-- ```{r, child='Questionnaire_ASQ.Rmd'} -->
 
-```
+<!-- ``` -->
 
-# Questionnaire BFI-10
-```{r, child='Questionnaire_BFI-10.Rmd'}
+<!-- # Questionnaire BFI-10 -->
+<!-- ```{r, child='Questionnaire_BFI-10.Rmd'} -->
 
-```
+<!-- ``` -->
 
-# Questionnaire HADS
-```{r, child='Questionnaire_HADS.Rmd'}
+<!-- # Questionnaire HADS -->
+<!-- ```{r, child='Questionnaire_HADS.Rmd'} -->
 
-```
+<!-- ``` -->
 
-# Task Delay Discounting
-```{r, child='Task_DelayDiscounting.Rmd'}
+<!-- # Task Delay Discounting -->
+<!-- ```{r, child='Task_DelayDiscounting.Rmd'} -->
 
-```
+<!-- ``` -->
 

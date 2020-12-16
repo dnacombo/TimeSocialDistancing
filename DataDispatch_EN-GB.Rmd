@@ -1,7 +1,7 @@
 ---
 title: "Data EN-GB"
 params:
-  experimentID: 14926
+  ExperimentID: 14926
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
@@ -15,7 +15,6 @@ output:
 ---
 
 ```{r, message=F}
-params$experimentID
 library(tidyverse)
 source('helpers.R')
 
@@ -27,23 +26,23 @@ source('helpers.R')
 ```
 
 
-# Questionnaire ASQ
-```{r, child='Questionnaire_ASQ.Rmd'}
+<!-- # Questionnaire ASQ -->
+<!-- ```{r, child='Questionnaire_ASQ.Rmd'} -->
 
-```
+<!-- ``` -->
 
-# Questionnaire BFI-10
-```{r, child='Questionnaire_BFI-10.Rmd'}
+<!-- # Questionnaire BFI-10 -->
+<!-- ```{r, child='Questionnaire_BFI-10.Rmd'} -->
 
-```
+<!-- ``` -->
 
-# Questionnaire HADS
-```{r, child='Questionnaire_HADS.Rmd'}
+<!-- # Questionnaire HADS -->
+<!-- ```{r, child='Questionnaire_HADS.Rmd'} -->
 
-```
+<!-- ``` -->
 
-# Task Delay Discounting
-```{r, child='Task_DelayDiscounting.Rmd'}
+<!-- # Task Delay Discounting -->
+<!-- ```{r, child='Task_DelayDiscounting.Rmd'} -->
 
-```
+<!-- ``` -->
 
