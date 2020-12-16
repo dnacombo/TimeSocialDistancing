@@ -10,10 +10,7 @@ source_rmd <- function(file, local = FALSE, ...){
   envir <- globalenv()
   source(tempR, local = envir, ...)
 }
-
-if (file.exists(f <- file.path(params$rootdir,'NodeKeys.csv')))   {
-  allnodes <- read_csv(f,col_types = cols())
-} else {
+f <- file.path(params$rootdir,'NodeKeys.csv')
   allnodes.S1 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
     filter(prefix != 'Comment')
   
@@ -28,16 +25,12 @@ if (file.exists(f <- file.path(params$rootdir,'NodeKeys.csv')))   {
                         allnodes.S3,.id = "Session")%>%
     mutate_all(.funs = ~ na_if(.,'N/A'))) %>%
     write_csv(f)
-}
+rm(allnodes.S1,allnodes.S2,allnodes.S3)
 
-
-if (file.exists(f <- file.path(params$rootdir,'ExperimentIDs.csv')))   {
-  ExperimentIDs <- read_csv(f,col_types = cols())
-} else {
+f <- file.path(params$rootdir,'ExperimentIDs.csv')
   ExperimentIDs <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
     pivot_longer(cols=starts_with('Session'),names_to = 'Session', values_to = 'Experiment ID',names_prefix = 'Session',values_drop_na = T) %>%
     write_csv(f)
-}
 
 if (!is_null(params$ExperimentID)) {
   ExperimentID <- params$ExperimentID
