@@ -44,7 +44,7 @@ We just unzipped data from experiment ``r ExperimentID`` to a temporary folder.
 
 ### Rename files
 
-We retrieve unique task identifiers: column `3` "Gorilla Protocol names" from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0), based on expermient ID (i.e. language) retrieved from [this google sheet]('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0').
+We retrieve unique task identifiers: column `3` "UniqueName" from [this google sheet](https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0), based on expermient ID (i.e. language) retrieved from [this google sheet]('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0').
 
 ```{r}
 
