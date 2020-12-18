@@ -1,5 +1,4 @@
 library(tidyverse)
-library(lubridate)
 
 source_rmd <- function(file, local = FALSE, ...){
   options(knitr.duplicate.label = 'allow')
@@ -150,6 +149,6 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
     d <- d %>% select(-starts_with('order-'),-starts_with('checkpoint-'),-starts_with('branch-'),-`Schedule ID`,-starts_with('Participant'),`Participant Private ID`)
   }
   d %>% select(Session,UniqueName,Run,matches('PID'),everything()) %>%
-    mutate(`UTC Date` = dmy_hms(`UTC Date`),
-           `Local Date` = dmy_hms(`Local Date`))
+    mutate(`UTC Date` = lubridate::dmy_hms(`UTC Date`),
+           `Local Date` = lubridate::dmy_hms(`Local Date`))
 }
