@@ -10,6 +10,43 @@ source_rmd <- function(file, local = FALSE, ...){
   envir <- globalenv()
   source(tempR, local = envir, ...)
 }
+
+
+gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentName = '.*', UniqueName = '.*', Session = '.*', Run = '.*', clean = T, verbose = T) {
+  
+  p <- paste0('data_exp_([0-9]{5}-)*', ExperimentID, '(-[0-9]{5})*', '_', ExperimentName, '_Session', Session)
+  d <- list.files(path = DataDir, pattern = p,full.names = T)
+  if (verbose) {
+    cat(paste0('Loading data from ', str_replace(d,DataDir,'')),sep = '\n')
+  }
+  
+  p <- paste0('S',Session,'_', UniqueName, '_r',Run,'.csv')
+  fs <- list.files(path = file.path(d),pattern = p,full.names = T)
+  if (length(fs) == 0) { stop(paste0('Could not find data (', p, ')'))}
+  
+  d <- tibble()
+  for (f in fs) {
+    FF <- str_match_all(basename(f),'(S[^_]*)_([^_]*)_r([^\\.]*)')
+    Session <- FF[[1]][2]
+    UniqueName <- FF[[1]][3]
+    Run <- FF[[1]][4]
+    
+    if (verbose) {cat(paste0('Loading ',str_replace(f,DataDir,'')),sep = '\n')}
+    
+    d <- read_csv(f,col_types = cols(.default = col_character())) %>%
+      mutate(Session = as.character(Session),
+             UniqueName = as.character(UniqueName),
+             Run = as.character(Run)) %>%
+      bind_rows(d,.)
+  }
+  if (clean){
+    d <- d %>% select(-starts_with('order-'),-starts_with('checkpoint-'),-starts_with('branch-'),-`Schedule ID`,-starts_with('Participant'),`Participant Private ID`)
+  }
+  d %>% select(Session,UniqueName,Run,matches('PID'),everything()) %>%
+    mutate(`UTC Date` = lubridate::dmy_hms(`UTC Date`),
+           `Local Date` = lubridate::dmy_hms(`Local Date`))
+}
+
 f <- file.path(params$rootdir,'NodeKeys.csv')
   allnodes.S1 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
     filter(prefix != 'Comment')
@@ -116,39 +153,4 @@ T_Complete <- function(orig) {
   print(d %>% summarize(n=n()))
   print(p)
   
-}
-
-gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentName = '.*', UniqueName = '.*', Session = '.*', Run = '.*', clean = T, verbose = T) {
-  
-  p <- paste0('data_exp_([0-9]{5}-)*', ExperimentID, '(-[0-9]{5})*', '_', ExperimentName, '_Session', Session)
-  d <- list.files(path = DataDir, pattern = p,full.names = T)
-  if (verbose) {
-    cat(paste0('Loading data from ', str_replace(d,DataDir,'')),sep = '\n')
-  }
-  
-  p <- paste0('S',Session,'_', UniqueName, '_r',Run,'.csv')
-  fs <- list.files(path = file.path(d),pattern = p,full.names = T)
-  if (length(fs) == 0) { stop(paste0('Could not find data (', p, ')'))}
-  
-  d <- tibble()
-  for (f in fs) {
-    FF <- str_match_all(basename(f),'(S[^_]*)_([^_]*)_r([^\\.]*)')
-    Session <- FF[[1]][2]
-    UniqueName <- FF[[1]][3]
-    Run <- FF[[1]][4]
-    
-    if (verbose) {cat(paste0('Loading ',str_replace(f,DataDir,'')),sep = '\n')}
-    
-    d <- read_csv(f,col_types = cols(.default = col_character())) %>%
-      mutate(Session = as.character(Session),
-             UniqueName = as.character(UniqueName),
-             Run = as.character(Run)) %>%
-      bind_rows(d,.)
-  }
-  if (clean){
-    d <- d %>% select(-starts_with('order-'),-starts_with('checkpoint-'),-starts_with('branch-'),-`Schedule ID`,-starts_with('Participant'),`Participant Private ID`)
-  }
-  d %>% select(Session,UniqueName,Run,matches('PID'),everything()) %>%
-    mutate(`UTC Date` = lubridate::dmy_hms(`UTC Date`),
-           `Local Date` = lubridate::dmy_hms(`Local Date`))
 }
