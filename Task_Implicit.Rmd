@@ -1,10 +1,11 @@
 ---
 title: "Extracting data for Task Implicit Timing"
 params:
-  experimentID: [15096,16303]
-  rootdir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA
+  ExperimentName: FR
+  rootdir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_201215
 output:
   html_document:
+    code_folding: hide
     df_print: paged
     toc: yes
   html_notebook:
@@ -16,48 +17,42 @@ output:
 ```{r, message=F}
 library(tidyverse)
 library(ggbeeswarm)
+library(ggrepel)
 source('helpers.R')
-```
-
-```{r, message=F}
-
-datadir = file.path(params$rootdir,paste0('data_exp_', paste(params$experimentID,collapse='-'), '_', ExperimentName[1]))
-outdir = paste(datadir,'processed',sep='_')
-dir.create(outdir,showWarnings = F)
-
-experimentID <- params$experimentID
-
-datafiles <- list.files(datadir,'S1_Implicit_r.*.csv',full.names = T)
-
-tmpdir <- file.path(params$rootdir,'.tmp')
-unlink(tmpdir,recursive=T)
-
-if (is_empty(datafiles)){
-  print('No Implicit data')
-  knitr::knit_exit()
-  }
-
 ```
 
 ### Read and describe data
 
 ```{r, warning=F}
 
-orig <- T_read(datafiles) %>%
-  mutate(Run = as.factor(str_replace(File,'S._Implicit_r(.).csv','\\1')),
-         `Reaction Time` = as.numeric(`Reaction Time`))
+orig <- gimmedata(params$rootdir, ExperimentName = params$ExperimentName, UniqueName = 'Implicit') %>%
+  mutate(`Reaction Time` = as.numeric(`Reaction Time`))
 
 N <- T_Nsuj(orig)
 
-
 ```
 
-Number of participants who completed this task:
-`r N`
 
 ```{r}
 
-T_Complete(orig)
+durations <- T_Complete(orig)
+
+data_duration_filtered <- left_join(orig, durations, by = c("Session", "UniqueName", "Run", "Experiment ID", "Repeat Key", "Participant Private ID")) %>%
+  filter(between(Duration,150,900))
+
+ggplot(durations,aes(x=Duration)) + geom_histogram(bins = 100) + scale_x_log10() + geom_vline(xintercept = 150) + geom_vline(xintercept = 900)
+ggplot(data_duration_filtered,aes(x=Duration)) + geom_histogram(bins = 100) + scale_x_log10() + geom_vline(xintercept = 150) + geom_vline(xintercept = 900)
+
+# ggplot(data_duration_filtered%>% 
+#          filter(`Trial Number` %in% 'END TASK') %>%
+#          group_by(Session,Run, UniqueName,`Experiment ID`,`Repeat Key`) %>%
+#          mutate(Duration = as.numeric(`Reaction Time`)/1000),
+#        aes(x = `Participant Private ID`, y = Duration,fill= `Participant Private ID`)) +
+#   geom_col(show.legend = F) +
+#   theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
+#   facet_grid(Session~Run) +
+#   ylab('Time to complete (s, log scale)') +
+#   scale_y_continuous()
 
 ```
 
@@ -65,13 +60,15 @@ T_Complete(orig)
 
 ```{r}
 
-(data_in_shape <- orig %>%
+(data_in_shape <- data_duration_filtered %>%
   filter(display == 'trial',`Zone Type` == 'response_keyboard_single') %>%
   mutate(SOA = factor(SOA,levels=c('500','1750','3000')),
          condition = factor(condition,levels=c(0,1),labels=c('nonPred','Pred'))) %>%
   select(`Participant Private ID`,`Local Date`,
-         SOA,condition,Run,`Reaction Time`,`Task Version`, `Experiment ID`)) %>%
-  write_csv(file.path(outdir,'S1_ImplicitTiming.csv'))
+         SOA,condition,Run,`Reaction Time`,`Task Version`, `Experiment ID`,`Repeat Key`,
+         Session, randomise_blocks))
+# %>%
+#   write_csv(file.path(outdir,'S1_ImplicitTiming.csv'))
 ```
 
 
@@ -92,10 +89,18 @@ data_in_shape %>% filter(is.na(condition)) %>% group_by(`Participant Private ID`
 These are the problematic subjects. All from task version 5 ExperimentID 15096.
 We discard them for now. We could retrieve condition by looking at blocks of 9 trials and checking whether or not the SOA is constant (condition==1 Pred), or variable (condition = 0 non PRed).
 
+```{r}
+data_in_shape <- data_in_shape %>% 
+  group_by(`Participant Private ID`,`Repeat Key`,randomise_blocks) %>%
+  group_modify(.f = function(.x,...){mutate(.x,condition = ifelse(length(unique(.x$SOA)) == 1,'Pred','nonPred'))})
+
+```
 
 ```{r}
 
-data_in_shape <- filter(data_in_shape,!is.na(condition))
+data_in_shape <- filter(data_in_shape,
+                        !is.na(condition),
+                        `Reaction Time` > 0)
 
 
 ggplot(data_in_shape,aes(x=SOA,y=`Reaction Time`,col=condition,group=interaction(condition,SOA))) +
@@ -122,22 +127,25 @@ library(lme4)
 library(lmerTest)
 library(emmeans)
 
-m <- lmer(log10(`Reaction Time`) ~ condition * SOA + (1 | `Participant Private ID`), data_in_shape )
+m <- lmer(log10(`Reaction Time`) ~ Session * condition * SOA + (1 | `Participant Private ID`), data_in_shape )
 
 anova(m)
 
-em <- summary(emmeans(m,specs = ~ condition + SOA),type = 'response',bias.adj = T)
+em <- summary(emmeans(m,specs = ~ condition + SOA + Session),type = 'response',bias.adj = T)
 
 data_in_shape %>% 
-  group_by(`Participant Private ID`, condition, SOA) %>%
+  group_by(`Participant Private ID`, condition, SOA, Session) %>%
   summarize(meanRT = mean(`Reaction Time`)) %>%
-  group_by(condition, SOA) %>%
+  group_by(condition, SOA, Session) %>%
   summarize(n = n(),
             semRT = sd(meanRT) / sqrt(n),
             meanRT = mean(meanRT)) %>%
 ggplot(aes(x=SOA,y=meanRT,col=condition,group=interaction(condition,SOA),ymin = meanRT - semRT, ymax = meanRT + semRT)) +
-  geom_pointrange() +
-  geom_pointrange(data = em, aes(y=response,ymin = asymp.LCL, ymax = asymp.UCL),shape = 2)
+  geom_pointrange(position=position_dodge(.5)) +
+  facet_wrap(~Session) +
+  geom_text_repel(aes(label = n, col = NA),position=position_dodge(.5))
+# + 
+#   geom_pointrange(data = em, aes(y=response,ymin = asymp.LCL, ymax = asymp.UCL),shape = 2)
 
 ```
 

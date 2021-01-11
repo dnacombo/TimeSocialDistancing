@@ -1,8 +1,8 @@
 ---
 title: "Extracting data for Task Delay Discouting"
 params:
-  experimentID: [15096,16303]
-  rootdir: /home/maximilien.chaumon/owncloud/Lab/00-Projects/TimeSocialDistancing/DATA
+  ExperimentID: [15096,16303]
+  rootdir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA
 output:
   html_document:
     df_print: paged
