@@ -16,6 +16,7 @@ params:
 
 ```{r, message=F}
 library(tidyverse)
+online <- T
 source('helpers.R')
 ```
 
@@ -67,7 +68,7 @@ fs <- list.files(tmpdir,full.names = T,recursive = T)
 dir.create(datadir)
 
 for (f in fs) {
-  # if (grepl('7b1e',f)) {stop()}
+  # if (grepl('v43.*fth3',f)) {stop()}
   if (file.size(f) < 400) {
     file.remove(f)
     next
