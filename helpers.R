@@ -1,7 +1,7 @@
 library(tidyverse)
-
-if (!exists('online')) {online <- F}
-
+if (!exists('params')) {
+  params = list(rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA')
+}
 
 gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentName = '.*', UniqueName = '.*', Session = '.*', Run = '.*', file = '',  clean = T, verbose = T) {
   
@@ -133,7 +133,13 @@ T_Complete <- function(orig) {
 
 f <- file.path(params$rootdir,'NodeKeys.csv')
 
-if (online) {
+lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
+  hoist(drive_resource,modified_on = 'modifiedTime') %>%
+  mutate(modified_on = lubridate::ymd_hms(modified_on))
+
+loc <- file.info(f)
+if (loc$mtime < lastmod$modified_on) {
+  
   allnodes.S1 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
     filter(prefix != 'Comment')
   
@@ -156,7 +162,12 @@ if (online) {
 
 f <- file.path(params$rootdir,'ExperimentIDs.csv')
 
-if (online) {
+lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
+  hoist(drive_resource,modified_on = 'modifiedTime') %>%
+  mutate(modified_on = lubridate::ymd_hms(modified_on))
+
+loc <- file.info(f)
+if (loc$mtime < lastmod$modified_on) {
   ExperimentIDs <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
     pivot_longer(cols=starts_with('Session'),names_to = 'Session', values_to = 'Experiment ID',names_prefix = 'Session',values_drop_na = T) %>%
     write_csv(f)
