@@ -1,0 +1,68 @@
+---
+title: "Data all sessions, FR data"
+params:
+  ExperimentName: FR
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+output:
+  html_notebook:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+---
+
+
+
+```{r}
+source('helpers.R')
+library(DT)
+options(dplyr.summarise.inform=F)
+
+rootdir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_201215'
+```
+
+Reading data
+
+```{r}
+alldata <- gimmedata(rootdir,ExperimentName = 'FR')
+```
+
+All subjects, tasks, and sessions.
+Finishing times sorted by Participant and completion date.
+```{r, fig.width=20}
+allPIDs <- alldata %>% group_by(`Participant Private ID`) %>%
+  filter(`Trial Number`  =='END TASK' | `Question Key` == 'END QUESTIONNAIRE') %>%
+  pivot_wider(c(PID, UniqueName, Run, Session, `UTC Date`),names_from = Session, values_from = `Participant Private ID`, values_fn = function(x){paste(x,collapse=' ')}) %>%
+  arrange(PID, `UTC Date`) %>%
+  mutate(`UTC Date` = lubridate::ymd_hms(`UTC Date`)) %>%
+  select(`UTC Date`,UniqueName,Run,PID, starts_with('S')) %>%
+  datatable(options = list(pageLength = 100)) %>% print()
+```
+
+The dashed and dotted lines highlight the first and last points of each of the three sessions.
+
+
+```{r, fig.width=20}
+toplot <- alldata %>% group_by(PID,UniqueName,Run,Session) %>%
+  filter(`Trial Number`  =='END TASK' | `Question Key` == 'END QUESTIONNAIRE') %>%
+  arrange(`UTC Date`) 
+
+
+sessionDates <- toplot %>%
+  group_by(Session) %>%
+  summarize(Start = first(`UTC Date`),
+         Stop = last(`UTC Date`)) %>%
+  select(Session,Start,Stop)
+
+confinement <- tibble(Date = lubridate::ymd_hms(c('2020/03/17 12:00:00','2020/05/11 23:59:59','2020/10/30 00:00:00', '2020/12/15 23:59:59'),tz = 'CET'), Session = c(1,1,2,2), Begend = c('Start','Stop','Start','Stop')) %>%
+  pivot_wider(values_from=Date,names_from=Begend)
+
+ggplot(toplot,aes(x=`UTC Date`, y=PID, col=UniqueName, shape = Session)) +
+  geom_point() +
+  # geom_ribbon(aes(xmin = Start, xmax = Stop, fill = Session, x = NA, y = NA, col = NA, shape = NA), data=sessionDates) +
+  # geom_ribbon(aes(xmin = Start, xmax = Stop,fill=Session, x = NA, y = NA, col = NA, shape = NA), data=confinement) +
+  geom_vline(aes(xintercept = Date),linetype = 2,data=sessionstart) +
+  geom_vline(aes(xintercept = Date),linetype = 3,data=sessionend) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
+  xlab('Date') + ylab('Participants')
+```
