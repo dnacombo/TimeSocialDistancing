@@ -1,7 +1,15 @@
 library(tidyverse)
+
 if (!exists('params')) {
-  params = list(rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA')
+  rootdir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+} else {
+  if (is.null(params$rootdir)) {
+    rootdir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  } else {
+    rootdir <- params$rootdir
+  }
 }
+
 
 gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentName = '.*', UniqueName = '.*', Session = '.*', Run = '.*', file = '',  clean = T, verbose = T) {
   
@@ -49,14 +57,14 @@ UpdateTables <- function(rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Pro
   
   test <- T
   if (wherefrom == 'online'){
-  tryCatch( {
-    if (! file.exists(f)) stop(paste0(f, 'does not exist'))
-    loc <- file.info(f)
-    lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
-      hoist(drive_resource,modified_on = 'modifiedTime') %>%
-      mutate(modified_on = lubridate::ymd_hms(modified_on))
-    test <- loc$mtime < lastmod$modified_on
-  },error = function(e){test <- T})
+    tryCatch( {
+      if (! file.exists(f)) stop(paste0(f, 'does not exist'))
+      loc <- file.info(f)
+      lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
+        hoist(drive_resource,modified_on = 'modifiedTime') %>%
+        mutate(modified_on = lubridate::ymd_hms(modified_on))
+      test <- loc$mtime < lastmod$modified_on
+    },error = function(e){test <- T})
   } else { test <- F}
   
   if (test) {
@@ -85,15 +93,15 @@ UpdateTables <- function(rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Pro
   
   test <- T
   if (wherefrom == 'online'){
-  tryCatch( {
-    if (! file.exists(f)) stop(paste0(f, 'does not exist'))
-    loc <- file.info(f)
-    lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
-      hoist(drive_resource,modified_on = 'modifiedTime') %>%
-      mutate(modified_on = lubridate::ymd_hms(modified_on))
-    
-    test <- loc$mtime < lastmod$modified_on
-  }, error = function(e){test <- T})
+    tryCatch( {
+      if (! file.exists(f)) stop(paste0(f, 'does not exist'))
+      loc <- file.info(f)
+      lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
+        hoist(drive_resource,modified_on = 'modifiedTime') %>%
+        mutate(modified_on = lubridate::ymd_hms(modified_on))
+      
+      test <- loc$mtime < lastmod$modified_on
+    }, error = function(e){test <- T})
   } else { test <- F}
   
   if (test) {
