@@ -1,7 +1,10 @@
 ---
-title: "Data all sessions, FR data"
+title: "Date layout"
 params:
-  ExperimentName: FR
+  Country: FR
+  ExperimentName: null
+  ExperimentID: null
+  Session: null    
   rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_notebook:
@@ -17,13 +20,17 @@ source('helpers.R')
 library(DT)
 options(dplyr.summarise.inform=F)
 
-rootdir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_201215'
+
+l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
+l$rootdir <- params$rootdir
+
+
 ```
 
 Reading data
 
 ```{r}
-alldata <- gimmedata(rootdir,ExperimentName = 'FR')
+alldata <- gimmedata(rootdir,ExperimentName = paste(l$ExperimentName,collapse = '|'), verbose = F)
 ```
 
 All subjects, tasks, and sessions.
@@ -53,15 +60,15 @@ sessionDates <- toplot %>%
          Stop = last(`UTC Date`)) %>%
   select(Session,Start,Stop)
 
-confinement <- tibble(Date = lubridate::ymd_hms(c('2020/03/17 12:00:00','2020/05/11 23:59:59','2020/10/30 00:00:00', '2020/12/15 23:59:59'),tz = 'CET'), Session = c(1,1,2,2), Begend = c('Start','Stop','Start','Stop')) %>%
-  pivot_wider(values_from=Date,names_from=Begend)
+# confinement <- tibble(Date = lubridate::ymd_hms(c('2020/03/17 12:00:00','2020/05/11 23:59:59','2020/10/30 00:00:00', '2020/12/15 23:59:59'),tz = 'CET'), Session = c(1,1,2,2), Begend = c('Start','Stop','Start','Stop')) %>%
+#   pivot_wider(values_from=Date,names_from=Begend)
 
 ggplot(toplot,aes(x=`UTC Date`, y=PID, col=UniqueName, shape = Session)) +
   geom_point() +
   # geom_ribbon(aes(xmin = Start, xmax = Stop, fill = Session, x = NA, y = NA, col = NA, shape = NA), data=sessionDates) +
   # geom_ribbon(aes(xmin = Start, xmax = Stop,fill=Session, x = NA, y = NA, col = NA, shape = NA), data=confinement) +
-  geom_vline(aes(xintercept = Date),linetype = 2,data=sessionstart) +
-  geom_vline(aes(xintercept = Date),linetype = 3,data=sessionend) +
+  geom_vline(aes(xintercept = Start),linetype = 2,data=sessionDates) +
+  geom_vline(aes(xintercept = Stop),linetype = 3,data=sessionDates) +
   theme(axis.text.y = element_blank(),
         axis.ticks.y = element_blank()) +
   xlab('Date') + ylab('Participants')
