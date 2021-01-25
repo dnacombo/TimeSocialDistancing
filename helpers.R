@@ -43,6 +43,145 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
            `Local Date` = lubridate::dmy_hms(`Local Date`))
 }
 
+UpdateTables <- function(rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', wherefrom='online') {
+  
+  f <- file.path(rootdir,'NodeKeys.csv')
+  
+  test <- T
+  if (wherefrom == 'online'){
+  tryCatch( {
+    if (! file.exists(f)) stop(paste0(f, 'does not exist'))
+    loc <- file.info(f)
+    lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
+      hoist(drive_resource,modified_on = 'modifiedTime') %>%
+      mutate(modified_on = lubridate::ymd_hms(modified_on))
+    test <- loc$mtime < lastmod$modified_on
+  },error = function(e){test <- T})
+  } else { test <- F}
+  
+  if (test) {
+    cat('Updating NodeKeys...\n')
+    allnodes.S1 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
+      filter(prefix != 'Comment')
+    
+    allnodes.S2 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=1606433485') %>%
+      filter(prefix != 'Comment')
+    
+    allnodes.S3 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=1814296211') %>%
+      filter(prefix != 'Comment')
+    
+    (allnodes <- bind_rows(allnodes.S1,
+                           allnodes.S2,
+                           allnodes.S3,.id = "Session")%>%
+        mutate_all(.funs = ~ na_if(.,'N/A'))) %>%
+      write_csv(f)
+    
+    rm(allnodes.S1,allnodes.S2,allnodes.S3)
+  } else {
+    allnodes <- read_csv(f, col_types = cols())
+  }
+  
+  f <- file.path(rootdir,'ExperimentIDs.csv')
+  
+  test <- T
+  if (wherefrom == 'online'){
+  tryCatch( {
+    if (! file.exists(f)) stop(paste0(f, 'does not exist'))
+    loc <- file.info(f)
+    lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
+      hoist(drive_resource,modified_on = 'modifiedTime') %>%
+      mutate(modified_on = lubridate::ymd_hms(modified_on))
+    
+    test <- loc$mtime < lastmod$modified_on
+  }, error = function(e){test <- T})
+  } else { test <- F}
+  
+  if (test) {
+    cat('Updating ExperimentIDs...\n')
+    ExperimentIDs <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
+      pivot_longer(cols=starts_with('Session'),names_to = 'Session', values_to = 'ExperimentID',names_prefix = 'Session',values_drop_na = T) %>%
+      write_csv(f)
+  } else {
+    ExperimentIDs <- read_csv(f,col_types = cols())
+  }
+  
+  return(list(allnodes = allnodes, ExperimentIDs = ExperimentIDs))
+  
+}
+list2env(UpdateTables(rootdir), envir = globalenv())
+
+Name2ID <- function(ExperimentName, ExperimentIDs) {
+  EN <- ExperimentName
+  return(dplyr::filter(ExperimentIDs,ExperimentName == EN)$`Experiment ID`)
+}
+ID2Name <- function(ExperimentID, ExperimentIDs) {
+  return(dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$ExperimentName)
+}
+Name2Session <- function(ExperimentName, ExperimentIDs) {
+  EN <- ExperimentName
+  return(dplyr::filter(ExperimentIDs,ExperimentName %in% EN)$Session)
+}
+ID2Session <- function(ExperimentID, ExperimentIDs) {
+  return(dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$Session)
+}
+Session2Name <- function(Session,ExperimentIDs){
+  S <- Session
+  return(dplyr::filter(ExperimentIDs,Session %in% S)$`ExperimentName`)
+}
+Session2ID <- function(Session,ExperimentIDs){
+  S <- Session
+  return(dplyr::filter(ExperimentIDs,Session %in% S)$`Experiment ID`)
+}
+Country2ID <- function(Country, ExperimentIDs) {
+  C <- Country
+  return(dplyr::filter(ExperimentIDs,Country == C)$`Experiment ID`)
+}
+ID2Country <- function(ExperimentID, ExperimentIDs) {
+  return(dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$Country)
+}
+Country2Name <- function(Country, ExperimentIDs) {
+  C <- Country
+  return(dplyr::filter(ExperimentIDs,Country %in% C)$ExperimentName)
+}
+Name2Country <- function(ExperimentName, ExperimentIDs) {
+  EN <- ExperimentName
+  return(dplyr::filter(ExperimentIDs,ExperimentName == EN)$Country)
+}
+
+paramsMatch <- function(ExperimentName = NULL, ExperimentID = NULL, Session = NULL, Country = NULL, experimentIDs) {
+  
+  if (any(attr(experimentIDs,'class') %in% 'knit_param_list')) {
+    attr(experimentIDs,'class') <- NULL
+    experimentIDs <- as_tibble(experimentIDs)
+  }
+  if (all(is.null(c(ExperimentName, ExperimentID, Session, Country)))){
+    stop('Specify at least one data selection method: ExperimentName, ExperimentID, Session, or Country')
+  }
+  EN <- if (is.null(ExperimentName)) {experimentIDs$ExperimentName} else {ExperimentName}
+  EID <-  if (is.null(ExperimentID)) {experimentIDs$`ExperimentID`} else {ExperimentID}
+  S <-  if (is.null(Session)) {experimentIDs$Session} else {Session}
+  C <-  if (is.null(Country)) {experimentIDs$Country} else {Country}
+  eid <- dplyr::filter(experimentIDs, 
+                       ExperimentName %in% EN,
+                       `ExperimentID` %in% EID,
+                       Session %in% S,
+                       Country %in% C)
+  return(list(ExperimentName = eid$ExperimentName, 
+              ExperimentID = eid$`ExperimentID`, 
+              Session = eid$Session,
+              Country = eid$Country))
+}
+
+params2dir <- function(params) {
+  ps <- params %>% as.data.frame() %>%
+    group_by(Session) %>%
+    group_split()
+  d <- character()
+  for (p in ps) {
+    d <- c(d,file.path(params$rootdir,paste0('data_exp_', paste0(unique(p$ExperimentID),collapse = '-'),'_',p$ExperimentName[1],'_Session',unique(p$Session))))
+  }
+  return(d)
+}
 source_rmd <- function(file, local = FALSE, ...){
   options(knitr.duplicate.label = 'allow')
   
@@ -131,61 +270,4 @@ T_Complete <- function(orig) {
   
 }
 
-f <- file.path(params$rootdir,'NodeKeys.csv')
 
-lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
-  hoist(drive_resource,modified_on = 'modifiedTime') %>%
-  mutate(modified_on = lubridate::ymd_hms(modified_on))
-
-loc <- file.info(f)
-if (loc$mtime < lastmod$modified_on) {
-  
-  allnodes.S1 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
-    filter(prefix != 'Comment')
-  
-  allnodes.S2 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=1606433485') %>%
-    filter(prefix != 'Comment')
-  
-  allnodes.S3 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=1814296211') %>%
-    filter(prefix != 'Comment')
-  
-  (allnodes <- bind_rows(allnodes.S1,
-                         allnodes.S2,
-                         allnodes.S3,.id = "Session")%>%
-      mutate_all(.funs = ~ na_if(.,'N/A'))) %>%
-    write_csv(f)
-  
-  rm(allnodes.S1,allnodes.S2,allnodes.S3)
-} else {
-  allnodes <- read_csv(f, col_types = cols())
-}
-
-f <- file.path(params$rootdir,'ExperimentIDs.csv')
-
-lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
-  hoist(drive_resource,modified_on = 'modifiedTime') %>%
-  mutate(modified_on = lubridate::ymd_hms(modified_on))
-
-loc <- file.info(f)
-if (loc$mtime < lastmod$modified_on) {
-  ExperimentIDs <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1p6_WHQXNGFw2EJGny1jb5qivMy2pJ_VRRYoDGRLxgbY/edit#gid=0') %>%
-    pivot_longer(cols=starts_with('Session'),names_to = 'Session', values_to = 'Experiment ID',names_prefix = 'Session',values_drop_na = T) %>%
-    write_csv(f)
-} else {
-  ExperimentIDs <- read_csv(f,col_types = cols())
-}
-
-if (!is_null(params$ExperimentID)) {
-  ExperimentID <- params$ExperimentID
-  ExperimentName <- dplyr::filter(ExperimentIDs,`Experiment ID` %in% params$ExperimentID)$ExperimentName
-}else{
-  if (!is_null(params$ExperimentName)) {
-    ExperimentName <- params$ExperimentName
-    ExperimentID <- dplyr::filter(ExperimentIDs,ExperimentName == params$ExperimentName)$`Experiment ID`
-  }else {
-    ExperimentID <- ExperimentIDs$`Experiment ID`
-    ExperimentName <- dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$ExperimentName
-  }
-}
-
-Session <- dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$Session
