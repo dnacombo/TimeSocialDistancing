@@ -15,7 +15,6 @@ output:
 
 
 ```{r, message=F}
-library(tidyverse)
 library(ggbeeswarm)
 library(ggrepel)
 source('helpers.R')
@@ -23,12 +22,17 @@ source('helpers.R')
 
 ### Read and describe data
 
-```{r, warning=F}
+```{r, rows.print = 100}
 
-orig <- gimmedata(params$rootdir, ExperimentName = params$ExperimentName, UniqueName = 'Implicit') %>%
-  mutate(`Reaction Time` = as.numeric(`Reaction Time`))
+orig <- gimmedata(params$rootdir, ExperimentName = params$ExperimentName, UniqueName = 'Implicit', verbose = F) %>%
+  mutate(ExperimentName = params$ExperimentName,
+         `Reaction Time` = as.numeric(`Reaction Time`))
 
-N <- T_Nsuj(orig)
+(N <- orig %>% filter(`Trial Number` %in% 'END TASK') %>%
+    select(PID,Session,Run,UniqueName,`Repeat Key`) %>%
+    group_by(Session,Run,UniqueName) %>%
+    distinct() %>%
+    summarize(N = n()))
 
 ```
 
@@ -61,12 +65,12 @@ ggplot(data_duration_filtered,aes(x=Duration)) + geom_histogram(bins = 100) + sc
 ```{r}
 
 (data_in_shape <- data_duration_filtered %>%
-  filter(display == 'trial',`Zone Type` == 'response_keyboard_single') %>%
-  mutate(SOA = factor(SOA,levels=c('500','1750','3000')),
-         condition = factor(condition,levels=c(0,1),labels=c('nonPred','Pred'))) %>%
-  select(`Participant Private ID`,`Local Date`,
-         SOA,condition,Run,`Reaction Time`,`Task Version`, `Experiment ID`,`Repeat Key`,
-         Session, randomise_blocks))
+   filter(display == 'trial',`Zone Type` == 'response_keyboard_single') %>%
+   mutate(SOA = factor(SOA,levels=c('500','1750','3000')),
+          condition = factor(condition,levels=c(0,1),labels=c('nonPred','Pred'))) %>%
+   select(`Participant Private ID`,PID,`Local Date`,
+          SOA,condition,Run,`Reaction Time`,`Task Version`, `Experiment ID`,`Repeat Key`,
+          Session, randomise_blocks))
 # %>%
 #   write_csv(file.path(outdir,'S1_ImplicitTiming.csv'))
 ```
@@ -87,7 +91,8 @@ data_in_shape %>% filter(is.na(condition)) %>% group_by(`Participant Private ID`
 ```
 
 These are the problematic subjects. All from task version 5 ExperimentID 15096.
-We discard them for now. We could retrieve condition by looking at blocks of 9 trials and checking whether or not the SOA is constant (condition==1 Pred), or variable (condition = 0 non PRed).
+
+We now retrieve condition by looking at blocks of 9 trials and checking whether or not the SOA is constant (condition==1 Pred), or variable (condition = 0 non PRed).
 
 ```{r}
 data_in_shape <- data_in_shape %>% 
@@ -140,7 +145,7 @@ data_in_shape %>%
   summarize(n = n(),
             semRT = sd(meanRT) / sqrt(n),
             meanRT = mean(meanRT)) %>%
-ggplot(aes(x=SOA,y=meanRT,col=condition,group=interaction(condition,SOA),ymin = meanRT - semRT, ymax = meanRT + semRT)) +
+  ggplot(aes(x=SOA,y=meanRT,col=condition,group=interaction(condition,SOA),ymin = meanRT - semRT, ymax = meanRT + semRT)) +
   geom_pointrange(position=position_dodge(.5)) +
   facet_wrap(~Session) +
   geom_text_repel(aes(label = n, col = NA),position=position_dodge(.5))
@@ -149,6 +154,53 @@ ggplot(aes(x=SOA,y=meanRT,col=condition,group=interaction(condition,SOA),ymin = 
 
 ```
 
+```{r}
+library(ggeffects)
+
+data_in_shape <- data_in_shape %>%
+  mutate(logRT = log10(`Reaction Time`),
+         PID = as.factor(PID),
+         SOA = as.factor(SOA),
+         condition = as.factor(condition),
+         Session = as.factor(Session))
+m <- lmer(logRT ~ Session *SOA * condition + (1 | `PID`), data_in_shape )
+
+pred <- ggpredict(m)
+
+m <- aov_ez(id = 'PID', dv = "RT", between = NULL, within = c('Session', 'SOA', 'condition'), data = data_in_shape )
+m1 <- aov_4(log10(`Reaction Time`) ~ 1 + (Session *SOA * condition | `PID`), data = data_in_shape )
+
+em <- emmeans(m1,~ Session + SOA + condition)
+plot(pred)
+
+pred <- ggpredict(m, ~ SOA + condition)
+ggplot(data = pred, aes(x, y=predicted, ymin = conf.low, ymax = conf.high, group = group, col = group)) +
+  geom_pointrange()
 
 
+```
+
+
+```{r}
+# data_all_exp <- gimmedata(params$rootdir, UniqueName = 'Implicit', verbose = F) %>%
+data_all_exp <- data_all_exp %>% group_by(`Experiment ID`) %>%
+  mutate(Country = ID2Country(ExperimentID = `Experiment ID`, ExperimentIDs = ExperimentIDs),
+         `Reaction Time` = as.numeric(`Reaction Time`),
+         PID = ifelse(is.na(PID),`Participant Private ID`, PID)) %>%
+  select(ExperimentName, Session, UniqueName, Run, PID, everything())
+
+```
+
+```{r}
+(N <- data_all_exp %>% filter(`Trial Number` %in% 'END TASK') %>%
+   select(PID,Session,Run,UniqueName,`Repeat Key`, Country) %>%
+   group_by(Session,Run,UniqueName, Country) %>%
+   distinct() %>%
+   summarize(N = n()) %>% ungroup() %>%
+   select(Country,Session, Run, N) %>%
+   arrange(Country, Session, Run)) %>%
+  ggplot(aes(x=Country, y=N, fill = Session)) +
+  geom_col(position='dodge')
+
+```
 
