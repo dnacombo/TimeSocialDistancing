@@ -1,4 +1,4 @@
-gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentName = '.*', UniqueName = '.*', Session = '.*', Run = '.*', file = '',  clean = T, verbose = T, progressbar = T) {
+gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentName = '.*', UniqueName = '.*', Session = '.*', Run = '.*', file = '',  clean = T, verbose = F, progress = T) {
   
   if (file != '') {
     if (! file.exists(file)) {stop('File provided does not exist')}
@@ -16,13 +16,13 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
   if (length(fs) == 0) { stop(paste0('Could not find data (', p, ')'))}
   
   d <- tibble()
-  if (progressbar) {
+  if (progress) {
     pb <- txtProgressBar(min = 0, max = length(fs), initial = 0, char = "=",
                          width = 40, style = 3)
   }
   i <- 0
   for (f in fs) {
-    if (progressbar) {
+    if (progress) {
       i <- i + 1
       setTxtProgressBar(pb,i)
     }
