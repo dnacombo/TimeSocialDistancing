@@ -1,4 +1,7 @@
 library(tidyverse)
+options(dplyr.summarise.inform=F)
+options(gargle_oauth_email = 'maximilien.chaumon@gmail.com')
+
 
 if (!exists('params')) {
   rootdir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
@@ -17,7 +20,7 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
     if (! file.exists(file)) {stop('File provided does not exist')}
     fs <- file
   } else {
-    p <- paste0('data_exp_([0-9]{5}-)*', ExperimentID, '(-[0-9]{5})*', '_', ExperimentName, '(_Session', Session, ')?')
+    p <- paste0('data_exp_([0-9]{5}-)*(', ExperimentID, ')(-[0-9]{5})*', '_(', ExperimentName, ')(_Session', Session, ')?')
     d <- list.files(path = DataDir, pattern = p,full.names = T)
     if (verbose) {
       cat(paste0('Loading data from ', str_replace(d,DataDir,'')),sep = '\n')
@@ -120,17 +123,19 @@ list2env(UpdateTables(rootdir), envir = globalenv())
 
 Name2ID <- function(ExperimentName, ExperimentIDs) {
   EN <- ExperimentName
-  return(dplyr::filter(ExperimentIDs,ExperimentName == EN)$`Experiment ID`)
+  return(dplyr::filter(ExperimentIDs,ExperimentName == EN)$ExperimentID)
 }
 ID2Name <- function(ExperimentID, ExperimentIDs) {
-  return(dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$ExperimentName)
+  ID <- ExperimentID
+  return(dplyr::filter(ExperimentIDs,ExperimentID %in% ID)$ExperimentName)
 }
 Name2Session <- function(ExperimentName, ExperimentIDs) {
   EN <- ExperimentName
   return(dplyr::filter(ExperimentIDs,ExperimentName %in% EN)$Session)
 }
 ID2Session <- function(ExperimentID, ExperimentIDs) {
-  return(dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$Session)
+  ID <- ExperimentID
+  return(dplyr::filter(ExperimentIDs,ExperimentID %in% ID)$Session)
 }
 Session2Name <- function(Session,ExperimentIDs){
   S <- Session
@@ -138,14 +143,15 @@ Session2Name <- function(Session,ExperimentIDs){
 }
 Session2ID <- function(Session,ExperimentIDs){
   S <- Session
-  return(dplyr::filter(ExperimentIDs,Session %in% S)$`Experiment ID`)
+  return(dplyr::filter(ExperimentIDs,Session %in% S)$ExperimentID)
 }
 Country2ID <- function(Country, ExperimentIDs) {
   C <- Country
-  return(dplyr::filter(ExperimentIDs,Country == C)$`Experiment ID`)
+  return(dplyr::filter(ExperimentIDs,Country == C)$ExperimentID)
 }
 ID2Country <- function(ExperimentID, ExperimentIDs) {
-  return(dplyr::filter(ExperimentIDs,`Experiment ID` %in% ExperimentID)$Country)
+  ID <- ExperimentID
+  return(dplyr::filter(ExperimentIDs,ExperimentID %in% ID)$Country)
 }
 Country2Name <- function(Country, ExperimentIDs) {
   C <- Country
@@ -162,9 +168,9 @@ paramsMatch <- function(ExperimentName = NULL, ExperimentID = NULL, Session = NU
     attr(experimentIDs,'class') <- NULL
     experimentIDs <- as_tibble(experimentIDs)
   }
-  if (all(is.null(c(ExperimentName, ExperimentID, Session, Country)))){
-    stop('Specify at least one data selection method: ExperimentName, ExperimentID, Session, or Country')
-  }
+  # if (all(is.null(c(ExperimentName, ExperimentID, Session, Country)))){
+  #   stop('Specify at least one data selection method: ExperimentName, ExperimentID, Session, or Country')
+  # }
   EN <- if (is.null(ExperimentName)) {experimentIDs$ExperimentName} else {ExperimentName}
   EID <-  if (is.null(ExperimentID)) {experimentIDs$`ExperimentID`} else {ExperimentID}
   S <-  if (is.null(Session)) {experimentIDs$Session} else {Session}
