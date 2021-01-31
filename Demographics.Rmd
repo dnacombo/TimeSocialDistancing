@@ -1,0 +1,111 @@
+---
+title: "General Demographics"
+params:
+  Country: null
+  ExperimentName: null
+  ExperimentID: null
+  Session: null    
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+output:
+  html_document:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+  html_notebook:
+    code_folding: hide
+    df_print: paged
+    toc: yes
+---
+
+```{r, message = F}
+
+source('helpers.R')
+library(lubridate)
+
+demo <- gimmedata(DataDir = rootdir, UniqueName = 'Demographics', verbose = F)
+
+Keys <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=0') %>%
+  filter(UniqueName == 'S1_Demographics')
+
+recoder <- Keys$Standard
+names(recoder) <- Keys$Question
+
+HandednessMap <- read_csv('Δεξιόχειρας,right-handed
+Αριστερόχειρας,left-handed
+Αμφιδέξιος,ambidextrous
+Sağlak,right-handed
+İki elini de kullanabilen,ambidextrous
+Solak,left-handed
+Derecha,right-handed
+Right-handed,right-handed
+Left-handed,left-handed
+Ambidextrous,ambidextrous
+右利き,right-handed
+左利き,left-handed
+両利き,ambidextrous
+Droite,right-handed
+Gauche,left-handed
+Ambidextre,ambidextrous', col_names = F)
+recodeHandedness <- HandednessMap$X2
+names(recodeHandedness) <- HandednessMap$X1
+
+Demo <- demo %>%
+  mutate(`Question Key` = recode(`Question Key`,!!!recoder)) %>%
+  select(`Experiment ID`, `PID`, Session, `Question Key`, `Response`, `UTC Date`) %>%
+  group_by(`Experiment ID`) %>%
+  mutate(ExperimentName = ID2Name(`Experiment ID`,ExperimentIDs = ExperimentIDs)) %>%
+  ungroup() %>%
+  mutate(`Question Key` = recode(`Question Key`,
+                                 `dob-year` = "Age-year",
+                                 `dob-month` = "Age-month")) %>%
+  filter(`Question Key` %in% c("Age-year", "Age-month", "sex-quantised", "Handedness", "DOB")) %>%
+  mutate(`UTC Date` = floor_date(ymd_hms(`UTC Date`), unit = 'days')) %>%
+  pivot_wider(id_cols = c(ExperimentName,Session,PID, `UTC Date`), values_from = Response, names_from = `Question Key`, values_fn = first) %>%
+  mutate(Sex = as.factor(recode(`sex-quantised`,`1`='M',`2`='F')),
+         Handedness = as.factor(recode(Handedness,!!!recodeHandedness)),
+         Age = as.numeric(dyears(abs(as.numeric(`Age-year`))) + dmonths(abs(as.numeric(`Age-month`))),'years'),
+         DOB2 =  floor_date(`UTC Date` - dyears(Age), unit = 'days'))
+Demo$DOB2[is.na(Demo$DOB2)] <- parse_date_time(Demo$DOB[is.na(Demo$DOB2)],orders = '%d.%m.%y',truncated = 1)
+Demo <- Demo %>%
+  select(-DOB) %>%
+  rename(DOB = DOB2) %>%
+  mutate(Age = as.numeric(as.period(interval(end=as.Date(`UTC Date`), start = as.Date(DOB))),'years'),
+         Age = ifelse(Age>100,NA,Age))
+# %>%
+#   select(ExperimentName,Session,PID,`UTC Date`,Age, Sex, Handedness)
+```
+
+```{r}
+
+ggplot(Demo,aes(x=Age,fill=ExperimentName)) +
+  geom_histogram(position = 'dodge',bins = 30) + 
+  facet_wrap(~ExperimentName, scales = 'free_y') +
+  ggtitle('Age distribution across countries')
+
+library(ggridges)
+ggplot(Demo, aes(y= ExperimentName, x= Age,  fill= ExperimentName)) +
+  geom_density_ridges(alpha=0.6, bins=50) +
+  theme_ridges() +
+  theme(legend.position="none",
+        strip.text.x = element_text(size = 8)) +
+  labs(y = "Country", x = "Age", title ="Age distributions of participants") +
+  theme(plot.title = element_text(face = "bold", "hjust" = 0.5)) +
+  scale_x_continuous(breaks = seq(from = 0, to = 80, by = 5))
+
+Demo %>% group_by(ExperimentName) %>%
+  mutate(n=n()) %>%
+  group_by(ExperimentName,Handedness) %>%
+  summarize(H = n()/n) %>% distinct() %>%
+  ggplot(aes(x=ExperimentName,y=H,fill=Handedness)) +
+  geom_col()  +
+  ggtitle('Handedness proportions across countries')
+
+Demo %>% group_by(ExperimentName) %>%
+  mutate(n=n()) %>%
+  group_by(ExperimentName,Sex) %>%
+  summarize(S = n()/n) %>% distinct() %>%
+  ggplot(aes(x=ExperimentName,y=S,fill=Sex)) +
+  geom_col()  +
+  ggtitle('Sex proportions across countries')
+
+```
