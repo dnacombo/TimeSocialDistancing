@@ -5,7 +5,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
     code_folding: hide
@@ -22,7 +22,7 @@ output:
 source('helpers.R')
 library(lubridate)
 
-demo <- gimmedata(DataDir = rootdir, UniqueName = 'Demographics', verbose = F)
+demo <- gimmedata(DataDir = datadir, UniqueName = 'Demographics', verbose = F)
 
 Keys <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=0') %>%
   filter(UniqueName == 'S1_Demographics')

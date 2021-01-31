@@ -5,7 +5,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_210125'
+  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_210125'
 output:
   html_notebook:
     code_folding: hide
@@ -21,12 +21,12 @@ output:
 source('helpers.R')
 
 l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
-l$rootdir <- params$rootdir
+l$datadir <- params$datadir
 
 ```
 
 ```{r}
-d <- gimmedata(DataDir = params$rootdir, ExperimentName = paste(l$ExperimentName,collapse='|'), verbose = F) %>%
+d <- gimmedata(DataDir = params$datadir, ExperimentName = paste(l$ExperimentName,collapse='|'), verbose = F) %>%
   group_by(`Experiment ID`)%>%
   mutate(Country = ID2Country(ExperimentID = `Experiment ID`, ExperimentIDs = ExperimentIDs))
 

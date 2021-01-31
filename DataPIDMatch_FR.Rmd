@@ -5,7 +5,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
     code_folding: hide
@@ -26,11 +26,11 @@ source('helpers.R')
 Country = 'FR'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$rootdir <- params$rootdir
+l$datadir <- params$datadir
 
 dum <- list2env(l, envir = environment())
 
-datadir <- tibble(fname = list.files(rootdir,paste0('data_exp_[^\\.]+Session[0-9]+$'),include.dirs = T) ) %>%
+datadir <- tibble(fname = list.files(datadir,paste0('data_exp_[^\\.]+Session[0-9]+$'),include.dirs = T) ) %>%
   filter(! str_detect(fname,'processed'),
          str_detect(fname,ExperimentName[1]))
 
@@ -39,7 +39,7 @@ datadir <- tibble(fname = list.files(rootdir,paste0('data_exp_[^\\.]+Session[0-9
 
 ## Collect, match, and save PIDs across sessions
 ```{r}
-fs <- sapply(datadir,function(x){list.files(path=file.path(rootdir,x),pattern='S._Welcome.csv',full.names = T)})
+fs <- sapply(datadir,function(x){list.files(path=file.path(datadir,x),pattern='S._Welcome.csv',full.names = T)})
 
 # initialize empty list
 PIDs <- tibble(PubID=character(),email=character(),Session=character(),`Participant Private ID`=character())
@@ -101,7 +101,7 @@ for (isess in cn$cols) {
   distinct()) %>%
   select(-email,-PubID) %>%
   distinct() %>%
-  write_csv(file.path(rootdir,paste0('AllPID_',ExperimentName[1], '.csv')),na='')
+  write_csv(file.path(datadir,paste0('AllPID_',ExperimentName[1], '.csv')),na='')
 
 (nuPIDs)
 ```
@@ -145,7 +145,7 @@ Add a PID column to the data, with unique ID for each participant (the first pri
 ```{r}
 
 suppressWarnings(
-  PIDs <- read_csv(file.path(rootdir,paste0('AllPID_',ExperimentName[1],'.csv')),col_types = cols()) %>%
+  PIDs <- read_csv(file.path(datadir,paste0('AllPID_',ExperimentName[1],'.csv')),col_types = cols()) %>%
     unite('PID',starts_with('Session'),sep=' ',remove=F) %>%
     mutate(PID = str_replace_all(PID,'NA ?',''), # remove NAs
            PID = str_replace(PID,' .*','')) %>%   # discard all but the first PID
@@ -161,11 +161,11 @@ suppressWarnings(
 matchingPIDs <- PIDs$PID
 names(matchingPIDs) <- PIDs$origPID
 
-datadir <- tibble(fname = list.files(rootdir,paste0('data_exp_[^\\.]+Session[0-9]+$'),include.dirs = T) ) %>%
+datadir <- tibble(fname = list.files(datadir,paste0('data_exp_[^\\.]+Session[0-9]+$'),include.dirs = T) ) %>%
   filter(! str_detect(fname,'processed'),
          str_detect(fname,ExperimentName[1]))
 
-fs <- sapply(datadir,function(x){list.files(path=file.path(rootdir,x),pattern='S._.*.csv',full.names = T)})
+fs <- sapply(datadir,function(x){list.files(path=file.path(datadir,x),pattern='S._.*.csv',full.names = T)})
 fs <- fs[!str_detect(fs,'PID.csv')]
 
 for (f in fs) {

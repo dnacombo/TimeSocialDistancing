@@ -10,7 +10,7 @@ output:
     df_print: paged
     toc: yes
 params:
-  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 editor_options: 
   chunk_output_type: console
 ---
@@ -36,7 +36,7 @@ HADS_exception <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1KY
 ```{r, warning=F}
 
 # first list all data files, ignore processed ones, extract experimentID and UniqueName
-fs <- list.files(params$rootdir,pattern='(S1_[^\\/]*).csv',full.names = T,recursive = T) %>%
+fs <- list.files(params$datadir,pattern='(S1_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
   filter(! str_detect(fname,'processed')
          # ,str_detect(fname,'BFI')
@@ -47,7 +47,7 @@ fs <- list.files(params$rootdir,pattern='(S1_[^\\/]*).csv',full.names = T,recurs
   group_by(UniqueName,experimentID) %>%
   group_split()
 
-# allQ <- read_csv(f <- file.path(params$rootdir,'AllQuestionnaireQuestions.csv')) %>%
+# allQ <- read_csv(f <- file.path(params$datadir,'AllQuestionnaireQuestions.csv')) %>%
 #   group_by(UniqueName,Question) %>%
 #   summarize(n = 1) %>% select(-n) %>%
 #   write_csv(f)
@@ -119,7 +119,7 @@ QTranslateOrMap <- Responses %>%
   group_by(UniqueName, Question) %>% 
   group_keys() %>% 
   left_join(QTranslateOrMap,by=c('UniqueName','Question')) %>%
-  write_csv(file.path(params$rootdir,'_QTranslateOrMap.csv'),na = '')
+  write_csv(file.path(params$datadir,'_QTranslateOrMap.csv'),na = '')
 
 # Now split the list of Responses to all Questions and Questionnaire
 splitResponses <- Responses %>%
@@ -180,14 +180,14 @@ for (r in splitResponses) {
 }
 
 ToMap %>% select(UniqueName, Question, `14926_EN-GB`,everything()) %>%
-  write_csv(f <- file.path(params$rootdir,'ToMapSheetQuestionnaire.csv'),na='')
+  write_csv(f <- file.path(params$datadir,'ToMapSheetQuestionnaire.csv'),na='')
 
 ToTranslate %>% 
   # add_row(UniqueName='S1_IQ', Question='IQ_4-text', experimentID='15096-16303_FR',Response='TEST', .before = 17) %>%
   filter(!is.na(Response)) %>%
   full_join(QToTranslate, by = c("UniqueName", "Question", "experimentID", "Response", "Translated")) %>%
   arrange(experimentID, UniqueName, Question) %>%
-  write_csv(f <- file.path(params$rootdir,'ToTranslateSheetQuestionnaire.csv'),na='')
+  write_csv(f <- file.path(params$datadir,'ToTranslateSheetQuestionnaire.csv'),na='')
 
 ```
 
@@ -195,7 +195,7 @@ ToTranslate %>%
 
 ```{r, warning=F}
 # first list all files, ignore processed ones, extract experimentID and UniqueName
-fs <- list.files(params$rootdir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
+fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
   filter(!str_detect(fname,'_processed')) %>%
   extract(fname,into=c('experimentID','UniqueName'),'data_exp_([^\\/]*)/([^\\/]*).csv',remove = F) %>%
@@ -226,7 +226,7 @@ TTranslateOrMap <- Responses %>%
   group_by(UniqueName, Field) %>% 
   group_keys() %>% 
   left_join(TTranslateOrMap,by=c('UniqueName','Field'))   %>%
-  write_csv(file.path(params$rootdir,'_TTranslateOrMap.csv'),na = '')
+  write_csv(file.path(params$datadir,'_TTranslateOrMap.csv'),na = '')
 
 # for each Task
 ToMap <- tibble()
@@ -292,7 +292,7 @@ TToMap <- ToMap %>%
   mutate(n=1:n()) %>%
   pivot_wider(names_from = experimentID,values_from = Value) %>%
   select(-n) %>%
-  write_csv(f <- file.path(params$rootdir,'ToMapSheetTask.csv'),na = '')
+  write_csv(f <- file.path(params$datadir,'ToMapSheetTask.csv'),na = '')
 
 TToTranslateT <- ToTranslate %>% ungroup() %>%
   # add_row(experimentID = '14926_EN-GB',UniqueName='S1_1back',Field = 'ANSWER',Value = 'Up',.before=10) %>%
@@ -303,6 +303,6 @@ TToTranslateT <- ToTranslate %>% ungroup() %>%
   unite(col = Translated,Translated.y, Translated.x,sep = ' ',na.rm=T) %>%
   mutate(Translated = str_remove(Translated,'NA')) %>% 
   arrange(experimentID, UniqueName, Field) %>%
-  write_csv(f <- file.path(params$rootdir,'ToTranslateSheetTask.csv'),na='')
+  write_csv(f <- file.path(params$datadir,'ToTranslateSheetTask.csv'),na='')
 
 ```

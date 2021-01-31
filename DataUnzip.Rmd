@@ -14,7 +14,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  rootdir: null
+  datadir: null
 ---
 
 ```{r, message=F}
@@ -27,7 +27,7 @@ l <- paramsMatch(ExperimentName = params$ExperimentName,
                  Country = params$Country, 
                  experimentIDs = ExperimentIDs)
 
-l$rootdir <- params$rootdir
+l$datadir <- params$datadir
 
 dum <- list2env(l, envir = environment())
 ```
@@ -37,10 +37,10 @@ dum <- list2env(l, envir = environment())
 ```{r, message=F}
 
 # list files
-zipfiles <- unlist(sapply(ExperimentID,function(f){list.files(rootdir,paste0('data_exp_',f,'-v.*.zip'),full.names = T)}))
+zipfiles <- unlist(sapply(ExperimentID,function(f){list.files(datadir,paste0('data_exp_',f,'-v.*.zip'),full.names = T)}))
 
 # create temp dir
-tmpdir <- file.path(rootdir,'.tmp')
+tmpdir <- file.path(datadir,'.tmp')
 # remove any preexisting data
 unlink(tmpdir,recursive=T)
 
@@ -52,7 +52,7 @@ dum <- sapply(zipfiles,function(x){unzip(x,exdir=tmpdir)})
 datadir <- character()
 for (S in Session) {
   m <- paramsMatch(ExperimentName = ExperimentName, ExperimentID = ExperimentID, Session = S, experimentIDs = ExperimentIDs)
-  datadir[S] <- file.path(rootdir,paste0('data_exp_',paste(as.character(m$ExperimentID),collapse = '-'), '_', m$ExperimentName[1], '_Session',S))
+  datadir[S] <- file.path(datadir,paste0('data_exp_',paste(as.character(m$ExperimentID),collapse = '-'), '_', m$ExperimentName[1], '_Session',S))
 }
 
 # remove eventual previous output in that directory
@@ -170,7 +170,7 @@ for (dr in datadir) {
 
 ```{r}
 
-if ( !file.exists(f <- file.path(rootdir,'extraColumnNames.csv'))){
+if ( !file.exists(f <- file.path(datadir,'extraColumnNames.csv'))){
   allColumnNames <- extraColumnNames %>%
     write_csv(f)
 } else {

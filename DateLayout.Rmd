@@ -5,7 +5,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_notebook:
     code_folding: hide
@@ -22,7 +22,7 @@ options(dplyr.summarise.inform=F)
 
 
 l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
-l$rootdir <- params$rootdir
+l$datadir <- params$datadir
 
 
 ```
@@ -30,7 +30,7 @@ l$rootdir <- params$rootdir
 ## Reading data
 
 ```{r}
-alldata <- gimmedata(rootdir,ExperimentName = paste(l$ExperimentName,collapse = '|'), verbose = F)
+alldata <- gimmedata(datadir,ExperimentName = paste(l$ExperimentName,collapse = '|'), verbose = F)
 ```
 
 ## Counting subjects

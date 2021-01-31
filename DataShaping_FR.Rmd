@@ -14,15 +14,15 @@ library(tidyverse)
 library(plyr)
 library(tools)
 
-rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 
-tmpdir <- file.path(rootdir,'.tmp')
+tmpdir <- file.path(datadir,'.tmp')
 
 ```
 
 ## Unzip data
 ```{r}
-datafile <- file.path(rootdir,'data_exp_16303-v2.zip')
+datafile <- file.path(datadir,'data_exp_16303-v2.zip')
 
 experimentID <- gsub('.*data_exp_([[:digit:]]+)-v[[:digit:]]+.zip','\\1',datafile)
 

@@ -14,9 +14,9 @@ library(tidyverse)
 library(plyr)
 library(tools)
 
-rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/MOCK_DATA'
+datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/MOCK_DATA'
 
-tmpdir <- file.path(rootdir,'.tmp')
+tmpdir <- file.path(datadir,'.tmp')
 
 ```
 
@@ -26,9 +26,9 @@ If you download experiment data from Gorilla, you probably want to get it in zip
 
 ```{r, warning=F}
 
-datafile <- file.path(rootdir,'data_exp_15575-v41.zip')
-# datafile <- file.path(rootdir,'VVW_data_exp_15096-v35.zip')
-# datafile = file.path(rootdir,'drive-download-20200426T134951Z-001.zip')
+datafile <- file.path(datadir,'data_exp_15575-v41.zip')
+# datafile <- file.path(datadir,'VVW_data_exp_15096-v35.zip')
+# datafile = file.path(datadir,'drive-download-20200426T134951Z-001.zip')
 
 datadir <- sub('.zip','',datafile)
 

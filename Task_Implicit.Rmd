@@ -2,7 +2,7 @@
 title: "Extracting data for Task Implicit Timing"
 params:
   ExperimentName: FR
-  rootdir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_201215
+  datadir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_201215
 output:
   html_document:
     code_folding: hide
@@ -24,7 +24,7 @@ source('helpers.R')
 
 ```{r, rows.print = 100}
 
-orig <- gimmedata(params$rootdir, ExperimentName = params$ExperimentName, UniqueName = 'Implicit', verbose = F) %>%
+orig <- gimmedata(params$datadir, ExperimentName = params$ExperimentName, UniqueName = 'Implicit', verbose = F) %>%
   mutate(ExperimentName = params$ExperimentName,
          `Reaction Time` = as.numeric(`Reaction Time`))
 
@@ -182,7 +182,7 @@ ggplot(data = pred, aes(x, y=predicted, ymin = conf.low, ymax = conf.high, group
 
 
 ```{r}
-# data_all_exp <- gimmedata(params$rootdir, UniqueName = 'Implicit', verbose = F) %>%
+# data_all_exp <- gimmedata(params$datadir, UniqueName = 'Implicit', verbose = F) %>%
 data_all_exp <- data_all_exp %>% group_by(`Experiment ID`) %>%
   mutate(Country = ID2Country(ExperimentID = `Experiment ID`, ExperimentIDs = ExperimentIDs),
          `Reaction Time` = as.numeric(`Reaction Time`),

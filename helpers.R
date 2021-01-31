@@ -4,12 +4,12 @@ options(gargle_oauth_email = 'maximilien.chaumon@gmail.com')
 
 
 if (!exists('params')) {
-  rootdir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 } else {
-  if (is.null(params$rootdir)) {
-    rootdir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  if (is.null(params$datadir)) {
+    datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
   } else {
-    rootdir <- params$rootdir
+    datadir <- params$datadir
   }
 }
 
@@ -54,9 +54,9 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
            `Local Date` = lubridate::dmy_hms(`Local Date`))
 }
 
-UpdateTables <- function(rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', wherefrom='online') {
+UpdateTables <- function(datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', wherefrom='online') {
   
-  f <- file.path(rootdir,'NodeKeys.csv')
+  f <- file.path(datadir,'NodeKeys.csv')
   
   test <- T
   if (wherefrom == 'online'){
@@ -92,7 +92,7 @@ UpdateTables <- function(rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Pro
     allnodes <- read_csv(f, col_types = cols())
   }
   
-  f <- file.path(rootdir,'ExperimentIDs.csv')
+  f <- file.path(datadir,'ExperimentIDs.csv')
   
   test <- T
   if (wherefrom == 'online'){
@@ -119,7 +119,7 @@ UpdateTables <- function(rootdir = '/home/maximilien.chaumon/ownCloud/Lab/00-Pro
   return(list(allnodes = allnodes, ExperimentIDs = ExperimentIDs))
   
 }
-list2env(UpdateTables(rootdir), envir = globalenv())
+list2env(UpdateTables(datadir), envir = globalenv())
 
 Name2ID <- function(ExperimentName, ExperimentIDs) {
   EN <- ExperimentName
@@ -192,7 +192,7 @@ params2dir <- function(params) {
     group_split()
   d <- character()
   for (p in ps) {
-    d <- c(d,file.path(params$rootdir,paste0('data_exp_', paste0(unique(p$ExperimentID),collapse = '-'),'_',p$ExperimentName[1],'_Session',unique(p$Session))))
+    d <- c(d,file.path(params$datadir,paste0('data_exp_', paste0(unique(p$ExperimentID),collapse = '-'),'_',p$ExperimentName[1],'_Session',unique(p$Session))))
   }
   return(d)
 }
