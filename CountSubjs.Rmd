@@ -1,87 +1,64 @@
 ---
-title: "All subjects count"
+title: "Subjects count"
 params:
-  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  Country: CO
+  ExperimentName: null
+  ExperimentID: null
+  Session: null    
+  rootdir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_210125'
 output:
-  html_document:
+  html_notebook:
     code_folding: hide
     df_print: paged
     toc: yes
-  html_notebook:
+  html_document:
     code_folding: hide
     df_print: paged
     toc: yes
 ---
 
 ```{r, message=F}
-library(tidyverse)
 source('helpers.R')
 
+l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
+l$rootdir <- params$rootdir
+
 ```
 
 ```{r}
-fs <- list.files(params$rootdir,pattern = 'S._.*csv',recursive = T,full.names = T) %>%
-   tibble(fname=.) %>%
-   filter(! str_detect(fname,'processed')) %>%
-   # filter(str_detect(fname,'_FR.*S1_SelfPref_r1')) %>%
-   # slice(200:350) %>%
-   group_by(fname) %>%
-   group_split() 
-
-d <- tibble()
-options(dplyr.summarise.inform = F)
-for (f in fs) {
-  
-  suppressWarnings(
-    {tmp <- read_csv(f$fname,col_types = cols(),n_max = 1)
-    switch(str_match(unique(tmp$`Tree Node Key`),'questionnaire|task'),
-                questionnaire = {
-                  tmp <- Q_read(f$fname)
-                  N <- Q_Nsuj(tmp)},
-                task = {
-                  tmp <- T_read(f$fname)
-                  N <- T_Nsuj(tmp)}
-    ) 
-    eid <- N$`Experiment ID`
-    experimentName = filter(experimentIDs,`Experiment ID` %in% eid)$ExperimentName
-    d <- N %>% ungroup() %>%
-      mutate(experimentName = experimentName,
-             mainexperimentName = paste0('total_',str_replace(experimentName,'(.*?)_.*','\\1')),
-             taskName = str_replace(File,'(S._.*).csv','\\1')
-      ) %>%
-      select(-File) %>%
-      bind_rows(d)
-  })
-} 
-
-d <- d %>% unite('experimentID',`Experiment ID`,experimentName)
+d <- gimmedata(DataDir = params$rootdir, ExperimentName = paste(l$ExperimentName,collapse='|'), verbose = F) %>%
+  group_by(`Experiment ID`)%>%
+  mutate(Country = ID2Country(ExperimentID = `Experiment ID`, ExperimentIDs = ExperimentIDs))
 
 ```
 
 
 ```{r}
-(d %>% select(-mainexperimentName) %>%
-    pivot_wider(names_from = experimentID,values_from = N) %>%
-    left_join(d %>% 
-                group_by(mainexperimentName,taskName) %>%
-                summarize(N = sum(N)) %>%
-                pivot_wider(names_from = mainexperimentName,values_from = N)) %>%
-    write_csv(file.path(params$rootdir,'CountSubjs.csv'), na='')
-)
-  
+count <- tibble()
+if ('Trial Number' %in% colnames(d)) {
+  count <- filter(d,`Trial Number` == 'END TASK') %>%
+    group_by(Country,Session,  UniqueName) %>%
+    summarize(N = n()) %>%
+    bind_rows(count)
+}
+if ('Question Key' %in% colnames(d)) {
+  count <- filter(d,`Question Key` == 'END QUESTIONNAIRE') %>%
+  group_by(Country,Session,  UniqueName) %>%
+  summarize(N = n()) %>%
+    bind_rows(count)
+}
 
+ggplot(count,aes(x=UniqueName,y=N,fill = Session)) +
+  facet_wrap(~ Country) +
+  geom_col(position = position_dodge(width = 1)) +
+  geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) +
+  theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
+  labs(x='',y='Count')
 ```
 
 ```{r}
-
-d <- read_csv(file.path(params$rootdir,'CountSubjs.csv'),col_types = cols(taskName=col_factor(),.default = col_integer())) %>%
-  pivot_longer(-taskName,names_to = 'experimentID', values_to = 'N') %>%
-  mutate(experimendID = as.factor(experimentID))
-
-  ggplot(d,aes(x=taskName,y=N,col=experimentID,group=experimentID)) +
-  geom_point() + 
-  geom_line() +
-  theme(axis.text.x = element_text(angle=30, hjust = 1 ))
-
+count %>%
+  pivot_wider(id_cols = c(Session,UniqueName), names_from = Country, values_from=N) 
 ```
+
  
