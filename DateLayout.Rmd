@@ -1,7 +1,7 @@
 ---
 title: "Date layout"
 params:
-  Country: FR
+  Country: TR
   ExperimentName: null
   ExperimentID: null
   Session: null    
@@ -27,28 +27,51 @@ l$rootdir <- params$rootdir
 
 ```
 
-Reading data
+## Reading data
 
 ```{r}
 alldata <- gimmedata(rootdir,ExperimentName = paste(l$ExperimentName,collapse = '|'), verbose = F)
 ```
 
-All subjects, tasks, and sessions.
+## Counting subjects
+```{r}
+count <- alldata %>% 
+  filter(`Trial Number`  =='END TASK' | `Question Key` == 'END QUESTIONNAIRE') %>%
+    group_by(Country,Session,  UniqueName) %>%
+    summarize(N = n())
+
+ggplot(count,aes(x=UniqueName,y=N,fill = Session)) +
+  facet_wrap(~ Country) +
+  geom_col(position = position_dodge(width = 1)) +
+  geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) +
+  theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
+  labs(x='',y='Count')
+```
+
+```{r}
+count %>%
+  pivot_wider(id_cols = c(Session,UniqueName), names_from = Country, values_from=N) 
+```
+
+## Display finishing dates of all tasks
+
 Finishing times sorted by Participant and completion date.
+
 ```{r, fig.width=20}
+
 allPIDs <- alldata %>% group_by(`Participant Private ID`) %>%
   filter(`Trial Number`  =='END TASK' | `Question Key` == 'END QUESTIONNAIRE') %>%
   pivot_wider(c(PID, UniqueName, Run, Session, `UTC Date`),names_from = Session, values_from = `Participant Private ID`, values_fn = function(x){paste(x,collapse=' ')}) %>%
   arrange(PID, `UTC Date`) %>%
   mutate(`UTC Date` = lubridate::ymd_hms(`UTC Date`)) %>%
   select(`UTC Date`,UniqueName,Run,PID, starts_with('S')) %>%
-  datatable(options = list(pageLength = 100)) %>% print()
+  datatable(options = list(pageLength = 20)) %>% print()
 ```
 
 The dashed and dotted lines highlight the first and last points of each of the three sessions.
 
 
-```{r, fig.width=20}
+```{r, fig.width=20, fig.height=10}
 toplot <- alldata %>% group_by(PID,UniqueName,Run,Session) %>%
   filter(`Trial Number`  =='END TASK' | `Question Key` == 'END QUESTIONNAIRE') %>%
   arrange(`UTC Date`) 
