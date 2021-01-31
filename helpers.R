@@ -239,7 +239,6 @@ T_Complete <- function(orig) {
     ylab('Time to complete (s, log scale)') +
     scale_y_log10()
   
-  print(d %>% group_by(Session,Run, UniqueName,`Experiment ID`) %>% summarize(n=n()))
   print(p)
   
   return(d %>% select(Session, Run, UniqueName, `Participant Private ID`,`Repeat Key`, Duration))
