@@ -38,7 +38,15 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
              UniqueName = as.character(UniqueName),
              Run = as.character(Run))
     if (clean){
-      tmp <- tmp %>% select(-starts_with('order-'),-starts_with('checkpoint-'),-starts_with('branch-'),-matches('Schedule ID'),-starts_with('Participant'),`Participant Private ID`)
+      tmp <- tmp %>% select(-starts_with('order-'),
+                            -starts_with('checkpoint-'),
+                            -starts_with('branch-'),
+                            -matches('Schedule ID'),
+                            -ends_with('Timestamp'),
+                            -starts_with('Participant'),
+                            `Participant Private ID`,
+                            -`Tree Node Key`,
+                            -starts_with('Spreadsheet'))
     }
     d <- bind_rows(d,tmp)
   }

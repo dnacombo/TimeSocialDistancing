@@ -142,6 +142,7 @@ paramsMatch <- function(ExperimentName = NULL, ExperimentID = NULL, Session = NU
                        `ExperimentID` %in% EID,
                        Session %in% S,
                        Country %in% C)
+  names(eid$Country) <- eid$`ExperimentID`
   return(list(ExperimentName = eid$ExperimentName, 
               ExperimentID = eid$`ExperimentID`, 
               Session = eid$Session,
