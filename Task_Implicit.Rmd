@@ -1,8 +1,11 @@
 ---
 title: "Extracting data for Task Implicit Timing"
 params:
-  ExperimentName: FR
-  datadir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_201215
+  Country: null
+  ExperimentName: null
+  ExperimentID: null
+  Session: null    
+  datadir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA
 output:
   html_document:
     code_folding: hide
@@ -15,19 +18,41 @@ output:
 
 
 ```{r, message=F}
+# load a few helpers functions and variables
+source('helpers.R')
+
+# recombine all parameters
+l <- paramsMatch(Country = params$Country,
+                 ExperimentName = params$ExperimentName,
+                 ExperimentID = params$ExperimentID,
+                 Session = params$Session,
+                 experimentIDs = ExperimentIDs)
+l$datadir <- params$datadir
+
 library(ggbeeswarm)
 library(ggrepel)
-source('helpers.R')
+library(afex)
+library(skimr)
 ```
 
-### Read and describe data
+## Read and describe data
 
 ```{r, rows.print = 100}
 
-orig <- gimmedata(params$datadir, ExperimentName = params$ExperimentName, UniqueName = 'Implicit', verbose = F) %>%
-  mutate(ExperimentName = params$ExperimentName,
-         `Reaction Time` = as.numeric(`Reaction Time`))
+  orig <- gimmedata(l$datadir, ExperimentID = paste(l$ExperimentID,sep='|'), UniqueName = 'Implicit', verbose = F, progress = F) %>%
+    mutate(`Reaction Time` = as.numeric(`Reaction Time`),
+           Session = as.factor(Session),
+           UniqueName = as.factor(UniqueName),
+           Run = as.factor(Run),
+           PID = as.factor(PID),
+           Country = recode(`Experiment ID`,!!!l$Country))
 
+skim(orig)
+```
+
+Number of subjects per Session and Run.
+
+```{r, rows.print = 100}
 (N <- orig %>% filter(`Trial Number` %in% 'END TASK') %>%
     select(PID,Session,Run,UniqueName,`Repeat Key`) %>%
     group_by(Session,Run,UniqueName) %>%
@@ -36,6 +61,7 @@ orig <- gimmedata(params$datadir, ExperimentName = params$ExperimentName, Unique
 
 ```
 
+#
 
 ```{r}
 
@@ -44,10 +70,19 @@ durations <- T_Complete(orig)
 data_duration_filtered <- left_join(orig, durations, by = c("Session", "UniqueName", "Run", "Experiment ID", "Repeat Key", "Participant Private ID")) %>%
   filter(between(Duration,150,900))
 
-ggplot(durations,aes(x=Duration)) + geom_histogram(bins = 100) + scale_x_log10() + geom_vline(xintercept = 150) + geom_vline(xintercept = 900)
-ggplot(data_duration_filtered,aes(x=Duration)) + geom_histogram(bins = 100) + scale_x_log10() + geom_vline(xintercept = 150) + geom_vline(xintercept = 900)
+ggplot(durations,aes(x=Duration)) +
+  geom_histogram(bins = 100) +
+  scale_x_log10() + 
+  geom_vline(xintercept = 150) +
+  geom_vline(xintercept = 900)
 
-# ggplot(data_duration_filtered%>% 
+ggplot(data_duration_filtered,aes(x=Duration)) + 
+  geom_histogram(bins = 100) +
+  scale_x_log10() + 
+  geom_vline(xintercept = 150) +
+  geom_vline(xintercept = 900)
+
+# ggplot(data_duration_filtered%>%
 #          filter(`Trial Number` %in% 'END TASK') %>%
 #          group_by(Session,Run, UniqueName,`Experiment ID`,`Repeat Key`) %>%
 #          mutate(Duration = as.numeric(`Reaction Time`)/1000),
@@ -167,40 +202,16 @@ m <- lmer(logRT ~ Session *SOA * condition + (1 | `PID`), data_in_shape )
 
 pred <- ggpredict(m)
 
-m <- aov_ez(id = 'PID', dv = "RT", between = NULL, within = c('Session', 'SOA', 'condition'), data = data_in_shape )
-m1 <- aov_4(log10(`Reaction Time`) ~ 1 + (Session *SOA * condition | `PID`), data = data_in_shape )
+# m <- aov_ez(id = 'PID', dv = "RT", between = NULL, within = c('Session', 'SOA', 'condition'), data = data_in_shape )
+# m1 <- aov_4(log10(`Reaction Time`) ~ 1 + (Session *SOA * condition | `PID`), data = data_in_shape )
 
-em <- emmeans(m1,~ Session + SOA + condition)
+em <- emmeans(m,~ Session + SOA + condition)
 plot(pred)
 
 pred <- ggpredict(m, ~ SOA + condition)
 ggplot(data = pred, aes(x, y=predicted, ymin = conf.low, ymax = conf.high, group = group, col = group)) +
   geom_pointrange()
 
-
-```
-
-
-```{r}
-# data_all_exp <- gimmedata(params$datadir, UniqueName = 'Implicit', verbose = F) %>%
-data_all_exp <- data_all_exp %>% group_by(`Experiment ID`) %>%
-  mutate(Country = ID2Country(ExperimentID = `Experiment ID`, ExperimentIDs = ExperimentIDs),
-         `Reaction Time` = as.numeric(`Reaction Time`),
-         PID = ifelse(is.na(PID),`Participant Private ID`, PID)) %>%
-  select(ExperimentName, Session, UniqueName, Run, PID, everything())
-
-```
-
-```{r}
-(N <- data_all_exp %>% filter(`Trial Number` %in% 'END TASK') %>%
-   select(PID,Session,Run,UniqueName,`Repeat Key`, Country) %>%
-   group_by(Session,Run,UniqueName, Country) %>%
-   distinct() %>%
-   summarize(N = n()) %>% ungroup() %>%
-   select(Country,Session, Run, N) %>%
-   arrange(Country, Session, Run)) %>%
-  ggplot(aes(x=Country, y=N, fill = Session)) +
-  geom_col(position='dodge')
 
 ```
 
