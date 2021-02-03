@@ -35,10 +35,6 @@ sessiondatadir <- tibble(fname = list.files(datadir,paste0('data_exp_[^\\.]+Sess
          str_detect(fname,ExperimentName[1]))
 
 
-```
-
-## Collect, match, and save PIDs across sessions
-```{r}
 fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(datadir,x),pattern='S._Welcome.csv',full.names = T)})
 
 # initialize empty list
@@ -103,9 +99,8 @@ for (isess in cn$cols) {
   distinct() %>%
   write_csv(file.path(datadir,paste0('AllPID_',ExperimentName[1], '.csv')),na='')
 
-(nuPIDs)
 ```
-## count subjects
+## count subjects in the Welcome session
 ```{r}
 options(dplyr.summarise.inform=F)
 PIDs %>% group_by(Session) %>%
@@ -116,8 +111,7 @@ PIDs %>% group_by(Session) %>%
   ggtitle('Number of participants per session')
 ```
 
-## Find participants who used several email addresses
-
+## Find participants who used several email but the same pubID
 ```{r}
 dupem <- nuPIDs %>%
   group_by(PubID) %>%
@@ -128,7 +122,7 @@ matched_by_email %>%
   left_join(select(PIDs,email,PubID),by='email') %>%
 filter(email %in% dupem) %>% distinct() %>% select(PubID,email, everything()) %>%arrange(PubID)
 ```
-## find participants who used different pubID
+# find participants who used different pubID but the same email
 ```{r}
 duppid <- nuPIDs %>%
   group_by(email) %>%
@@ -138,7 +132,7 @@ duppid <- nuPIDs %>%
 matched_by_PID %>% filter(PubID %in% duppid) %>% distinct() %>% select(email, PubID, everything()) %>% arrange(email)
 ```
 
-# Match IDs across sessions.
+# Add PID column to all tasks
 
 Add a PID column to the data, with unique ID for each participant (the first private ID they appear under).
 

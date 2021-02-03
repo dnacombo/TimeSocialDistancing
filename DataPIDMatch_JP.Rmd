@@ -7,11 +7,11 @@ params:
   Session: null    
   datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
-  html_document:
+  html_notebook:
     code_folding: hide
     df_print: paged
     toc: yes
-  html_notebook:
+  html_document:
     code_folding: hide
     df_print: paged
     toc: yes
@@ -35,11 +35,6 @@ sessiondatadir <- tibble(fname = list.files(datadir,paste0('data_exp_[^\\.]+Sess
   filter(! str_detect(fname,'processed'),
          str_detect(fname,ExperimentName[1]))
 
-
-```
-
-## Collect, match, and save PIDs across sessions
-```{r}
 fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(datadir,x),pattern='S._Welcome.csv',full.names = T)})
 
 # initialize empty list
@@ -95,9 +90,8 @@ for (isess in cn$cols) {
   distinct() %>%
   write_csv(file.path(datadir,paste0('AllPID_',ExperimentName[1], '.csv')),na='')
 
-(nuPIDs)
 ```
-## count subjects
+## count subjects in the Welcome session
 ```{r}
 options(dplyr.summarise.inform=F)
 PIDs %>% group_by(Session) %>%
@@ -111,7 +105,7 @@ PIDs %>% group_by(Session) %>%
 # Fix PID
 One subject seems to have entered two different PubIDs: `125aea` for session1, and `125new` for sessions 2 and 3. We merge it.
 Also subject who entered `[test00]` as PID is removed
-```{r}
+```{r echo=TRUE}
 
 patch <- tibble(PID = "125eae", Session1 = "1386108",	Session2 = "1555376",	Session3 = "1954709")
 (nuPIDs <- nuPIDs %>% filter(! PubID %in% c('125eae','125new','[test00]')) %>%
@@ -123,7 +117,7 @@ patch <- tibble(PID = "125eae", Session1 = "1386108",	Session2 = "1555376",	Sess
 ```
 
 
-# Match IDs across sessions.
+# Add PID column to all tasks
 
 Add a PID column to the data, with unique ID for each participant (the first private ID they appear under).
 

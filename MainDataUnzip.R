@@ -10,18 +10,18 @@ l$datadir <- datadir
 rmarkdown::render(
   'DataUnzip.Rmd',
   params = l,
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
 )
 
 rmarkdown::render(
   paste0('DataPIDMatch_', Country[1], '.Rmd'),
-  output_file = paste0('DataPIDMatch_', Country[1]),
+  output_file = paste0('Reports/02_DataPIDMatch_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )
 
@@ -33,19 +33,19 @@ l$datadir <- datadir
 
 rmarkdown::render(
   'DataUnzip.Rmd',
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DataPIDMatch_', Country[1], '.Rmd'),
-  output_file = paste0('DataPIDMatch_', Country[1]),
+  output_file = paste0('Reports/02_DataPIDMatch_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )
 
@@ -57,20 +57,20 @@ l$datadir <- datadir
   
 rmarkdown::render(
   'DataUnzip.Rmd',
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DataPIDMatch_', Country[1], '.Rmd'),
-  output_file = paste0('DataPIDMatch_', Country[1]),
+  output_file = paste0('Reports/02_DataPIDMatch_', Country[1]),
   params = l,
 )
 
 
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )
 
@@ -82,19 +82,19 @@ l$datadir <- datadir
   
 rmarkdown::render(
   'DataUnzip.Rmd',
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DataPIDMatch_', Country[1], '.Rmd'),
-  output_file = paste0('DataPIDMatch_', Country[1]),
+  output_file = paste0('Reports/02_DataPIDMatch_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )
 
@@ -107,19 +107,19 @@ l$datadir <- datadir
   
 rmarkdown::render(
   'DataUnzip.Rmd',
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DataPIDMatch_', Country[1], '.Rmd'),
-  output_file = paste0('DataPIDMatch_', Country[1]),
+  output_file = paste0('Reports/02_DataPIDMatch_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )
 
@@ -133,18 +133,18 @@ l$datadir <- datadir
 rmarkdown::render(
   'DataUnzip.Rmd',
   params = l,
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
 )
 
 rmarkdown::render(
   paste0('DataPIDMatch_', Country[1], '.Rmd'),
-  output_file = paste0('DataPIDMatch_', Country[1]),
+  output_file = paste0('Reports/02_DataPIDMatch_', Country[1]),
   params = l,
 )
 
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )
 
@@ -157,12 +157,12 @@ l$datadir <- datadir
 rmarkdown::render(
   'DataUnzip.Rmd',
   params = l,
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
 )
 
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )
 
@@ -175,12 +175,12 @@ l$datadir <- datadir
 rmarkdown::render(
   'DataUnzip.Rmd',
   params = l,
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
 )
 
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )
 
@@ -193,10 +193,10 @@ l$datadir <- datadir
 rmarkdown::render(
   'DataUnzip.Rmd',
   params = l,
-  output_file = paste0('DataUnzip_', Country[1]),
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
 )
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
-  output_file = paste0('DateLayout_', Country[1]),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
   params = l,
 )

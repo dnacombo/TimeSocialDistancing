@@ -1,11 +1,11 @@
 ---
 title: "Data Unzip"
 output:
-  html_notebook:
+  html_document:
     code_folding: hide
     df_print: paged
     toc: yes
-  html_document:
+  html_notebook:
     code_folding: hide
     df_print: paged
     toc: yes
@@ -77,7 +77,6 @@ for (f in fs) {
     file.remove(f)
     next
   }
-  cat(basename(f),sep = '\n')
   d <- switch(tools::file_ext(f),
               csv = suppressWarnings(read_csv(f,col_types = cols(.default = col_character()))),
               xlsx = readxl::read_excel(f)) %>%
@@ -91,21 +90,26 @@ for (f in fs) {
   } 
   
   CurrNode <- filter(allnodes,Session == l$Session,get(ExperimentName) == gsub('.*-([[:alnum:]]{4})','\\1',unique(d$`Tree Node Key`)))
-  
-  if (nrow(CurrNode) == 0 ){
-    cat(paste('Could not locate task for',basename(f), ':', unique(d$`Task Name`)),sep='\n')
-    file.remove(f)
+  if (nrow(CurrNode) > 1) {
+    cat(paste('###### Several UniqueNames for', basename(f), '?!? check the google spreadsheet!'))
+    dum <- file.remove(f)
     next
   }
   
-  write_csv(d, file = file.path(sessiondatadir[str_detect(sessiondatadir,eid)], paste0(CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv')))
+  if (nrow(CurrNode) == 0 ){
+    cat(paste('###### Could not locate UniqueName for',basename(f), ':', unique(d$`Task Name`)),sep='\n')
+    dum <- file.remove(f)
+    next
+  }
   
-  file.remove(f)
+  fw <- file.path(sessiondatadir[str_detect(sessiondatadir,eid)], paste0(CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv'))
+  dum <- write_csv(d, file = fw)
+  # cat(paste0(basename(f),' --> ', basename(fw), ': OK'), sep = '\n')
+  
+  dum <- file.remove(f)
 }
 
 ```
-
-### Merge experiment versions
 
 **Output files created:**
 
@@ -131,7 +135,7 @@ for (f in fs) {
 }
 ```
 
-### output different column names to a table
+### Storing column names in a table
 
 Storing the results in `ColumnNames.csv`
 
@@ -170,7 +174,7 @@ for (dr in sessiondatadir) {
 
 ```{r}
 
-if ( !file.exists(f <- file.path(sessiondatadir,'extraColumnNames.csv'))){
+if ( !file.exists(f <- file.path(sessiondatadir[1],'extraColumnNames.csv'))){
   allColumnNames <- extraColumnNames %>%
     write_csv(f)
 } else {
@@ -192,7 +196,7 @@ if ( !file.exists(f <- file.path(sessiondatadir,'extraColumnNames.csv'))){
 ```
 
 
-### For questionnaires, list question names
+### for questionnaires, storing question names in a table
 
 Storing the results in `QuestionKeys.csv`
 

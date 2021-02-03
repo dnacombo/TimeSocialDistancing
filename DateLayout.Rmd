@@ -1,7 +1,7 @@
 ---
 title: "Date layout"
 params:
-  Country: TR
+  Country: FR
   ExperimentName: null
   ExperimentID: null
   Session: null    
@@ -25,25 +25,21 @@ l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
 l$datadir <- params$datadir
 
 
-```
-
-## Reading data
-
-```{r}
-alldata <- gimmedata(datadir,ExperimentName = paste(l$ExperimentName,collapse = '|'), verbose = F)
+alldata <- gimmedata(datadir,ExperimentName = paste(l$ExperimentName,collapse = '|'), verbose = F, progress = F) %>%
+  mutate(Country = recode(`Experiment ID`, !!!l$Country), .before = Session)
 ```
 
 ## Counting subjects
 ```{r}
 count <- alldata %>% 
   filter(`Trial Number`  =='END TASK' | `Question Key` == 'END QUESTIONNAIRE') %>%
-    group_by(Country,Session,  UniqueName) %>%
+    group_by(Country,Session, Run,  UniqueName) %>%
     summarize(N = n())
 
 ggplot(count,aes(x=UniqueName,y=N,fill = Session)) +
-  facet_wrap(~ Country) +
+  facet_grid(Session~., scales = 'free_y') +
   geom_col(position = position_dodge(width = 1)) +
-  geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) +
+  # geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) +
   theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
   labs(x='',y='Count')
 ```
@@ -53,7 +49,7 @@ count %>%
   pivot_wider(id_cols = c(Session,UniqueName), names_from = Country, values_from=N) 
 ```
 
-## Display finishing dates of all tasks
+## Tasks, dates, and PID
 
 Finishing times sorted by Participant and completion date.
 
@@ -68,8 +64,8 @@ allPIDs <- alldata %>% group_by(`Participant Private ID`) %>%
   datatable(options = list(pageLength = 20)) %>% print()
 ```
 
-The dashed and dotted lines highlight the first and last points of each of the three sessions.
 
+The dashed and dotted lines highlight the first and last points of each of the three sessions.
 
 ```{r, fig.width=20, fig.height=10}
 toplot <- alldata %>% group_by(PID,UniqueName,Run,Session) %>%
