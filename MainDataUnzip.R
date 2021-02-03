@@ -5,10 +5,35 @@ source('helpers.R')
 Country = 'FR'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
-  
+l$datadir <- datadir
+
 rmarkdown::render(
-  'DataNuUnzip.Rmd',
+  'DataUnzip.Rmd',
+  params = l,
+  output_file = paste0('DataUnzip_', Country[1]),
+)
+
+rmarkdown::render(
+  paste0('DataPIDMatch_', Country[1], '.Rmd'),
+  output_file = paste0('DataPIDMatch_', Country[1]),
+  params = l,
+)
+
+rmarkdown::render(
+  paste0('DateLayout.Rmd'),
+  output_file = paste0('DateLayout_', Country[1]),
+  params = l,
+)
+
+################################ IT #######################################
+Country = 'IT'
+
+l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
+l$datadir <- datadir
+
+rmarkdown::render(
+  'DataUnzip.Rmd',
+  output_file = paste0('DataUnzip_', Country[1]),
   params = l,
 )
 
@@ -28,10 +53,11 @@ rmarkdown::render(
 Country = 'TR'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
+l$datadir <- datadir
   
 rmarkdown::render(
-  'DataNuUnzip.Rmd',
+  'DataUnzip.Rmd',
+  output_file = paste0('DataUnzip_', Country[1]),
   params = l,
 )
 
@@ -52,10 +78,11 @@ rmarkdown::render(
 Country = 'IN'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
+l$datadir <- datadir
   
 rmarkdown::render(
-  'DataNuUnzip.Rmd',
+  'DataUnzip.Rmd',
+  output_file = paste0('DataUnzip_', Country[1]),
   params = l,
 )
 
@@ -76,10 +103,11 @@ rmarkdown::render(
 Country = 'GR'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
+l$datadir <- datadir
   
 rmarkdown::render(
-  'DataNuUnzip.Rmd',
+  'DataUnzip.Rmd',
+  output_file = paste0('DataUnzip_', Country[1]),
   params = l,
 )
 
@@ -100,11 +128,12 @@ rmarkdown::render(
 Country = 'JP'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
+l$datadir <- datadir
   
 rmarkdown::render(
-  'DataNuUnzip.Rmd',
+  'DataUnzip.Rmd',
   params = l,
+  output_file = paste0('DataUnzip_', Country[1]),
 )
 
 rmarkdown::render(
@@ -123,11 +152,12 @@ rmarkdown::render(
 Country = 'CO'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
+l$datadir <- datadir
   
 rmarkdown::render(
-  'DataNuUnzip.Rmd',
+  'DataUnzip.Rmd',
   params = l,
+  output_file = paste0('DataUnzip_', Country[1]),
 )
 
 rmarkdown::render(
@@ -140,11 +170,12 @@ rmarkdown::render(
 Country = 'CA'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
+l$datadir <- datadir
   
 rmarkdown::render(
-  'DataNuUnzip.Rmd',
+  'DataUnzip.Rmd',
   params = l,
+  output_file = paste0('DataUnzip_', Country[1]),
 )
 
 rmarkdown::render(
@@ -157,11 +188,12 @@ rmarkdown::render(
 Country = 'AR'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
+l$datadir <- datadir
   
 rmarkdown::render(
-  'DataNuUnzip.Rmd',
+  'DataUnzip.Rmd',
   params = l,
+  output_file = paste0('DataUnzip_', Country[1]),
 )
 rmarkdown::render(
   paste0('DateLayout.Rmd'),
