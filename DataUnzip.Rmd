@@ -10,7 +10,7 @@ output:
     df_print: paged
     toc: yes
 params:
-  Country: CO
+  Country: IT
   ExperimentName: null
   ExperimentID: null
   Session: null    
@@ -49,14 +49,14 @@ cat(basename(zipfiles),sep = '\n')
 dum <- sapply(zipfiles,function(x){unzip(x,exdir=tmpdir)})
 
 # output directory is the zip filename plus experiment name and session
-datadir <- character()
+sessiondatadir <- character()
 for (S in Session) {
   m <- paramsMatch(ExperimentName = ExperimentName, ExperimentID = ExperimentID, Session = S, experimentIDs = ExperimentIDs)
-  datadir[S] <- file.path(datadir,paste0('data_exp_',paste(as.character(m$ExperimentID),collapse = '-'), '_', m$ExperimentName[1], '_Session',S))
+  sessiondatadir[S] <- file.path(datadir,paste0('data_exp_',paste(as.character(m$ExperimentID),collapse = '-'), '_', m$ExperimentName[1], '_Session',S))
 }
 
 # remove eventual previous output in that directory
-unlink(datadir,recursive=T)
+unlink(sessiondatadir,recursive=T)
 
 ```
 
@@ -67,7 +67,7 @@ The text below shows csv files that are missing from [this google sheet](https:/
 
 ```{r,warning=F}
 fs <- list.files(tmpdir,full.names = T,recursive = T)
-dum <- sapply(datadir,dir.create)
+dum <- sapply(sessiondatadir,dir.create)
 
 for (f in fs) {
   eid <- str_replace(f,'.*\\.tmp/data_exp_([0-9]{5}).*','\\1')
@@ -98,7 +98,7 @@ for (f in fs) {
     next
   }
   
-  write_csv(d, file = file.path(datadir[str_detect(datadir,eid)], paste0(CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv')))
+  write_csv(d, file = file.path(sessiondatadir[str_detect(sessiondatadir,eid)], paste0(CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv')))
   
   file.remove(f)
 }
@@ -110,7 +110,7 @@ for (f in fs) {
 **Output files created:**
 
 ```{r,message=F}
-fs <- list.files(datadir,pattern='([^\\/]*)_v-(.*).csv',full.names = T) %>%
+fs <- list.files(sessiondatadir,pattern='([^\\/]*)_v-(.*).csv',full.names = T) %>%
   tibble(fname=.) %>%
   extract(fname,into=c('UniqueName','Experiment Version'),'([^\\/]*)_v-(.*).csv',remove = F) %>%
   group_by(UniqueName) %>%
@@ -136,7 +136,7 @@ for (f in fs) {
 Storing the results in `ColumnNames.csv`
 
 ```{r}
-for (dr in datadir) {
+for (dr in sessiondatadir) {
   fs <- list.files(dr,pattern='([^\\/]*).csv',full.names = T) %>%
     tibble(fname=.) %>%
     extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
@@ -170,7 +170,7 @@ for (dr in datadir) {
 
 ```{r}
 
-if ( !file.exists(f <- file.path(datadir,'extraColumnNames.csv'))){
+if ( !file.exists(f <- file.path(sessiondatadir,'extraColumnNames.csv'))){
   allColumnNames <- extraColumnNames %>%
     write_csv(f)
 } else {
@@ -198,7 +198,7 @@ Storing the results in `QuestionKeys.csv`
 
 ```{r, warning=F}
 
-for (dr in datadir) {
+for (dr in sessiondatadir) {
   fs <- list.files(dr,pattern='(S[^\\/]*).csv',full.names = T) %>%
     tibble(fname=.) %>%
     extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
