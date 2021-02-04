@@ -25,6 +25,7 @@ UpdateTables <- function(datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Pro
     tryCatch( {
       if (! file.exists(f)) stop(paste0(f, 'does not exist'))
       loc <- file.info(f)
+      googledrive::drive_deauth()
       lastmod <- googledrive::drive_get('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=0') %>%
         hoist(drive_resource,modified_on = 'modifiedTime') %>%
         mutate(modified_on = lubridate::ymd_hms(modified_on))
