@@ -23,7 +23,6 @@ source('helpers.R')
 ```{r, message=F}
 
 datadir = file.path(params$datadir,paste0('data_exp_', paste(ExperimentID,collapse='-'), '_', ExperimentName[1]))
-outdir = paste(datadir,'processed',sep='_')
 dir.create(outdir,showWarnings = F)
 
 datafile <- list.files(datadir,'S1_ASQ.csv',full.names = T)
