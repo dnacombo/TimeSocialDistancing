@@ -199,7 +199,7 @@ Q_Complete <- function(orig) {
   d <- orig %>% filter(`Question Key` %in% 'END QUESTIONNAIRE') %>%
     group_by(Session,Run,`Experiment ID`) %>%
     mutate(Response = as.numeric(Response)/1000)
-  p <- ggplot(d,aes(x = `Participant Private ID`, y=Response,fill= `Participant Private ID`)) +
+  p <- ggplot(d,aes(x = `PID`, y=Response,fill= `Participant Private ID`)) +
     geom_col(show.legend = F) +
     scale_y_log10() +
     theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
@@ -234,7 +234,7 @@ T_Complete <- function(orig) {
     group_by(Session,Run, UniqueName,`Experiment ID`,`Repeat Key`) %>%
     mutate(Duration = as.numeric(`Reaction Time`)/1000)
   
-  p <- ggplot(d,aes(x = `Participant Private ID`, y = Duration,fill= `Participant Private ID`)) +
+  p <- ggplot(d,aes(x = PID, y = Duration,fill= `Participant Private ID`)) +
     geom_col(show.legend = F) +
     theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
     facet_grid(Session~Run) +
