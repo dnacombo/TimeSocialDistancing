@@ -125,8 +125,11 @@ Name2Country <- function(ExperimentName, ExperimentIDs) {
   return(dplyr::filter(ExperimentIDs,ExperimentName == EN)$Country)
 }
 
-paramsMatch <- function(ExperimentName = NULL, ExperimentID = NULL, Session = NULL, Country = NULL, experimentIDs) {
+paramsMatch <- function(params = NULL, ExperimentName = NULL, ExperimentID = NULL, Session = NULL, Country = NULL, experimentIDs) {
   
+  if (!is.null(params)) {
+    dum <- list2env(params, envir = environment())
+  }
   if (any(attr(experimentIDs,'class') %in% 'knit_param_list')) {
     attr(experimentIDs,'class') <- NULL
     experimentIDs <- as_tibble(experimentIDs)
