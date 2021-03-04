@@ -21,11 +21,8 @@ output:
 # load a few helpers functions and variables
 source('helpers.R')
 
-# recombine all parameters
-l <- paramsMatch(Country = params$Country,
-                 ExperimentName = params$ExperimentName,
-                 ExperimentID = params$ExperimentID,
-                 Session = params$Session,
+# find out which experiment name, ID, session... we're talking about
+l <- paramsMatch(params,
                  experimentIDs = ExperimentIDs)
 l$datadir <- params$datadir
 
@@ -39,7 +36,7 @@ library(skimr)
 
 ```{r, rows.print = 100}
 
-  orig <- gimmedata(l$datadir, ExperimentID = paste(l$ExperimentID,sep='|'), UniqueName = 'Implicit', verbose = F, progress = F) %>%
+  orig <- gimmedata(l$datadir, ExperimentID = paste(l$ExperimentID,collapse='|'), UniqueName = 'Implicit', verbose = F, progress = F) %>%
     mutate(`Reaction Time` = as.numeric(`Reaction Time`),
            Session = as.factor(Session),
            UniqueName = as.factor(UniqueName),
