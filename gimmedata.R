@@ -1,4 +1,4 @@
-gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentName = '.*', UniqueName = '.*', Session = '.*', Run = '.*', file = '',  clean = T, verbose = F, progress = T) {
+gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentName = '.*', UniqueName = '.*', Session = '.*', Run = '.*', file = '',  clean = T, verbose = F, progress = T, clap = F) {
   
   if (file != '') {
     if (! file.exists(file)) {stop('File provided does not exist')}
@@ -33,10 +33,14 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
     
     if (verbose) {cat(paste0('Loading ',str_replace(f,DataDir,'')),sep = '\n')}
     
-    tmp <- read_csv(f,col_types = cols(.default = col_character())) %>%
+    tmp <- read_csv(f,col_types = cols(.default = col_character()), n_max = ifelse(clap,1,Inf)) %>%
       mutate(Session = as.character(Session),
              UniqueName = as.character(UniqueName),
              Run = as.character(Run))
+    if (clap) {
+      tmp <- tmp %>%
+        mutate(filename = str_replace(f, DataDir,''))
+    }
     if (clean){
       tmp <- tmp %>% select(-starts_with('order-'),
                             -starts_with('checkpoint-'),
