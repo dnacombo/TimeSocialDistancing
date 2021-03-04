@@ -4,7 +4,7 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
     if (! file.exists(file)) {stop('File provided does not exist')}
     fs <- file
   } else {
-    p <- paste0('data_exp_([0-9]{5}-)*(', ExperimentID, ')(-[0-9]{5})*', '_(', ExperimentName, ')(_Session', Session, ')?')
+    p <- paste0('data_exp_([0-9]{5}-)*(', ExperimentID, ')(-[0-9]{5})*', '_(', ExperimentName, ')(_Session', Session, ')')
     d <- list.files(path = DataDir, pattern = p,full.names = T)
     if (verbose) {
       cat(paste0('Loading data from ', str_replace(d,DataDir,'')),sep = '\n')
