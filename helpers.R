@@ -234,7 +234,7 @@ T_Nsuj <- function(orig){
 
 T_Complete <- function(orig) {
   d <- orig %>% filter(`Trial Number` %in% 'END TASK') %>%
-    group_by(Session,Run, UniqueName,`Experiment ID`,`Repeat Key`) %>%
+    group_by(Country,Session,Run, UniqueName,`Experiment ID`,`Repeat Key`) %>%
     mutate(Duration = as.numeric(`Reaction Time`)/1000)
   
   p <- ggplot(d,aes(x = PID, y = Duration,fill= `Participant Private ID`)) +
@@ -246,7 +246,7 @@ T_Complete <- function(orig) {
   
   print(p)
   
-  return(d %>% select(Session, Run, UniqueName, `Participant Private ID`,`Repeat Key`, Duration))
+  return(d %>% select(Country,Session, Run, UniqueName, `Participant Private ID`,`Repeat Key`, Duration))
   
 }
 
