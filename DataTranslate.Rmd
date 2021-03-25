@@ -16,15 +16,14 @@ editor_options:
 ---
 
 ```{r, message=F}
-library(tidyverse)
 source('helpers.R')
 
 # we first retrieve useful information:
 # Questions in Tasks/Questionnaires that need to be mapped vs. translated
-QTranslateOrMap <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=0')
+QTranslateOrMap <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807')
 TTranslateOrMap <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1pDTfJUJnFoUxUbEnOSQrACg0vqSDv2czC52_6fM9Ozc/edit#gid=0')
 # The tables of previously translated materials (those we recompute now will be merged with these)
-QToTranslate <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=2147145491')
+QToTranslate <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=1845970270')
 TToTranslate <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/16pewaHuHCu8YStxHvF9Nis_RZOB3hT4utYLm5T9DSS4/edit#gid=1172154924')
 
 # Doe HADS questionnaire, we need to reorder some of the question labels. The translation sheet is found online.
@@ -36,15 +35,13 @@ HADS_exception <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1KY
 ```{r, warning=F}
 
 # first list all data files, ignore processed ones, extract experimentID and UniqueName
-fs <- list.files(params$datadir,pattern='(S1_[^\\/]*).csv',full.names = T,recursive = T) %>%
+fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
-  filter(! str_detect(fname,'processed')
-         # ,str_detect(fname,'BFI')
-         ) %>%
-  # slice(200:350) %>%
-  extract(fname,into=c('experimentID','UniqueName'),'data_exp_([^\\/]*)/([^\\/]*).csv',remove = F) %>%
-  mutate(UniqueName = str_replace(UniqueName,'(.*)_r[[:digit:]]+','\\1')) %>%
-  group_by(UniqueName,experimentID) %>%
+  filter(!str_detect(fname,'_processed')) %>%
+  extract(fname,into=c('experimentID','UniqueName'),'data_exp_([^\\/]*?)(?:_Session[^\\/]*)?/S._([^\\/]*).csv',remove = F) %>%
+  mutate(UniqueName = str_replace(UniqueName,'_r[[:digit:]]+b?$',''),
+         experimentID = as.factor(experimentID))%>%
+  group_by(UniqueName, experimentID) %>%
   group_split()
 
 # allQ <- read_csv(f <- file.path(params$datadir,'AllQuestionnaireQuestions.csv')) %>%
@@ -66,6 +63,7 @@ for (f in fs) {
   
   # extract all experimentID
   eid <- unique(f$`experimentID`)
+  Country <- str_match(eid,'.*_([\\w-]+)$')[2]
   
   # Retrieve Question Keys into a column:
   d <- tibble(Question = unique(tmp$`Question Key`)) %>%
@@ -87,10 +85,10 @@ for (f in fs) {
     w <- expand_grid(experimentID = d1$experimentID,
                      UniqueName = d1$UniqueName,
                      Question = d1$Question, 
-                     Response = unique(filter(tmp,`Question Key` == d1$Question)$`Response`)
-                     )%>%
+                     Response = sort(unique(filter(tmp,`Question Key` == d1$Question)$`Response`))
+    )%>%
       filter(!is.na(Response),
-             is.na(as.numeric(Response))) %>% # keeping only responses that are not numeric
+             is.na(suppressWarnings(as.numeric(Response)))) %>% # keeping only responses that are not numeric
       arrange(Response) %>%
       bind_rows(w)
   }
@@ -98,16 +96,16 @@ for (f in fs) {
   # now we have the list of responses for a given questionnaire
   # we catenate it with the responses to previous questionnaires and move on
   if (nrow(w) > 0){
-      # print(nrow(w))
+    # print(nrow(w))
     # if(nrow(w) < 5) print(w)
-      Responses <- w %>%
-        mutate(Question = str_replace(Question,'(HADS_._..)-.','\\1'),
-               Question = str_replace(Question,'selff','self')
-               , Question = ifelse(UniqueName == 'S1_HADS' & experimentID == eid & !all(is.na(HADS_exception[,eid])),
-                                   plyr::mapvalues(Question, from=HADS_exception[,eid][[1]], to=HADS_exception[,'14926_EN-GB'][[1]], warn_missing = F),
-                                   Question)
-               ) %>%
-        bind_rows(Responses)
+    Responses <- w %>%
+      mutate(Question = str_replace(Question,'(HADS_._..)-.','\\1'),
+             Question = str_replace(Question,'selff','self'),
+             Question = ifelse(UniqueName == 'HADS' & experimentID == eid & !all(is.na(HADS_exception[,Country])),
+                               plyr::mapvalues(Question, from=HADS_exception[,Country][[1]], to=HADS_exception[,'EN-GB'][[1]], warn_missing = F),
+                               Question)
+      ) %>%
+      bind_rows(Responses)
   }
   
 }
@@ -119,10 +117,12 @@ QTranslateOrMap <- Responses %>%
   group_by(UniqueName, Question) %>% 
   group_keys() %>% 
   left_join(QTranslateOrMap,by=c('UniqueName','Question')) %>%
+  arrange(UniqueName, Standard) %>%
   write_csv(file.path(params$datadir,'_QTranslateOrMap.csv'),na = '')
 
 # Now split the list of Responses to all Questions and Questionnaire
 splitResponses <- Responses %>%
+  # Standardize Question name
   mutate(Question = str_replace(Question,'(HADS_._..)-.','\\1'),
          Question = str_replace(Question,'selff','self')) %>%
   left_join(QTranslateOrMap, by=c('UniqueName','Question')) %>%
@@ -131,7 +131,7 @@ splitResponses <- Responses %>%
   group_by(UniqueName, Question) %>% 
   group_split()
 
-ToMap <- tibble(UniqueName=character(), Question=character(), `14926_EN-GB` = character(), .rows=0)
+ToMap <- tibble(UniqueName=character(), Question=character(), `EN-GB` = character(), .rows=0)
 ToTranslate <- tibble(UniqueName=character(), Question=character(), Translated=character(), .rows=0)
 # Now for each Question
 for (r in splitResponses) {
@@ -139,6 +139,7 @@ for (r in splitResponses) {
   
   # For each experimentID (i.e. language), list all unique Responses
   eids <- unique(r$experimentID)
+  
   alluniques <- list()
   for (i in eids) {
     alluniques[[i]] = unique(filter(r,experimentID == i)$Response)
@@ -147,9 +148,10 @@ for (r in splitResponses) {
   ls <- sapply(alluniques,length)
   
   # now list responses in wide format with columns == experimentID
-  alluniques2 <- tibble(UniqueName = r$UniqueName[1],Question=r$Question[1],`14926_EN-GB` = character(length = max(ls)),.rows = max(ls))
+  alluniques2 <- tibble(UniqueName = r$UniqueName[1], Question=r$Question[1], `EN-GB` = character(length = max(ls)), .rows = max(ls))
   for (i in eids) {
-    alluniques2 <- mutate( alluniques2, !!i := c(sort(unique(filter(r,experimentID == i)$Response)), rep(NA,max(ls) - ls[i])))
+    Country <- str_match(i,'.*_([\\w-]+)$')[,2]
+    alluniques2 <- mutate( alluniques2, !!Country := c(sort(unique(filter(r,experimentID == i)$Response)), rep(NA,max(ls) - ls[i])))
   }
   
   # check whether question needs to be translated or mapped
@@ -159,7 +161,8 @@ for (r in splitResponses) {
   
   # if question is not found in online table, skip
   if (length(TM)==0) {
-    print(paste('No response for', Q, U, '?',sep = ' '))
+    cat(paste('No response for', Q, U, '?',sep = ' '))
+    cat('\n')
     next
   }
   
@@ -170,24 +173,34 @@ for (r in splitResponses) {
          },
          T = {
            # Totranslate in long format
-           ToTranslate <- alluniques2 %>% select(-`14926_EN-GB`) %>%
-           pivot_longer(cols = -c('UniqueName', 'Question'), names_to = "experimentID",values_to = 'Response') %>%
-           mutate(Translated = NA) %>%
-           bind_rows(ToTranslate)
-         
+           ToTranslate <- alluniques2 %>% select(-`EN-GB`) %>%
+             pivot_longer(cols = -c('UniqueName', 'Question'), names_to = "experimentID",values_to = 'Response') %>%
+             mutate(Translated = NA) %>%
+             bind_rows(ToTranslate)
+           
          }
   )
 }
 
-ToMap %>% select(UniqueName, Question, `14926_EN-GB`,everything()) %>%
-  write_csv(f <- file.path(params$datadir,'ToMapSheetQuestionnaire.csv'),na='')
+ToMap %>% select(UniqueName, Question, `EN-GB`,everything()) %>%
+  write_csv(f <- file.path(params$datadir,'ToMapSheetQuestionnaire_new.csv'),na='')
+
+tmp <- QTranslateOrMap %>% drop_na(UniqueName,Question,TranslateOrMap,Standard)
+QuestionRecoder <- tmp$Standard
+names(QuestionRecoder) <- tmp$Question
 
 ToTranslate %>% 
   # add_row(UniqueName='S1_IQ', Question='IQ_4-text', experimentID='15096-16303_FR',Response='TEST', .before = 17) %>%
   filter(!is.na(Response)) %>%
-  full_join(QToTranslate, by = c("UniqueName", "Question", "experimentID", "Response", "Translated")) %>%
-  arrange(experimentID, UniqueName, Question) %>%
-  write_csv(f <- file.path(params$datadir,'ToTranslateSheetQuestionnaire.csv'),na='')
+  mutate(Country = str_match(experimentID,'.*_([\\w-]+)$')[,2]) %>%
+  select(-experimentID) %>%
+  full_join(QToTranslate %>% mutate(UniqueName = str_replace(UniqueName, '^S._','')) %>% 
+              distinct(Country, UniqueName, Question, Response, .keep_all = T) %>%
+              mutate(Question = recode(Question,!!!QuestionRecoder)), 
+            by = c("UniqueName", "Question", "Country", "Response", "Translated")) %>%
+  arrange(Country, UniqueName, Question) %>%
+  select(Country,UniqueName,Question,Response,Translated) %>%
+  write_csv(f <- file.path(params$datadir,'ToTranslateSheetQuestionnaire_new.csv'),na='')
 
 ```
 
@@ -198,19 +211,23 @@ ToTranslate %>%
 fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
   filter(!str_detect(fname,'_processed')) %>%
-  extract(fname,into=c('experimentID','UniqueName'),'data_exp_([^\\/]*)/([^\\/]*).csv',remove = F) %>%
-  mutate(UniqueName = str_replace(UniqueName,'_r[[:digit:]]+$',''))%>%
+  extract(fname,into=c('experimentID','UniqueName'),'data_exp_([^\\/]*?)(?:_Session[^\\/]*)?/S._([^\\/]*).csv',remove = F) %>%
+  mutate(UniqueName = str_replace(UniqueName,'_r[[:digit:]]+b?$',''),
+         experimentID = as.factor(experimentID))%>%
   group_by(UniqueName) %>%
   group_split()
 
-# First create TTranslateOrMap: 
+# First create TranslateOrMap: 
 # list all columns in all tasks, and decide which ones are to be considered
-col2remove =  c('Spreadsheet Name',	'Spreadsheet Row',	'Trial Number',	'Screen Number',	'Screen Name',	'Zone Name',	'Zone Type',	'Reaction Time',	'Reaction Onset', 'Attempt',	'Correct',	'Incorrect',	'Dishonest',	'X Coordinate',	'Y Coordinate',	'Timed Out',	'randomise_blocks',	'randomise_trials',	'display','Question Key',  'stim','Stim','letters','duration','ILI','__EMPTY','__EMPTY_1','number','numstep','timelimit','TimedSection','State1','State2','1500','space','SOA','Duration','Response Type','ITI','ShowProgressBar','randomise_Trials','condition')
-Responses <- tibble()
+
+col2remove =  c('PID','Spreadsheet','Spreadsheet Name',	'Spreadsheet Row',	'Trial Number',	'Screen Number',	'Screen Name',	'Zone Name',	'Zone Type',	'Reaction Time',	'Reaction Onset', 'Attempt',	'Correct',	'Incorrect',	'Dishonest',	'X Coordinate',	'Y Coordinate',	'Timed Out',	'randomise_blocks',	'randomise_trials',	'display','Question Key',  'stim','Stim','letters','duration','ILI','__EMPTY','__EMPTY_1','number','numstep','timelimit','TimedSection','State1','State2','1500','space','SOA','Duration','Response Type','ITI','ShowProgressBar','randomise_Trials','condition')
+ResponseFields <- tibble()
 for (f in fs) {
   if (all(startsWith(read_csv(f$fname[1], col_types = cols(), n_max = 1)$`Tree Node Key`,'questionnaire'))) next
   
-  Responses <- f %>% mutate(n=1:nrow(.)) %>%
+  # read response fields in all files for this task
+  # ResponseFields are columns
+  ResponseFields <- f %>% mutate(n=1:nrow(.)) %>%
     group_by(n) %>%
     group_modify(~ read_csv(.x$fname, col_types = cols(.default = col_character()),n_max = 1) %>%
                    mutate(experimentID = .x$experimentID)) %>%
@@ -219,90 +236,108 @@ for (f in fs) {
     select(-(1:`Task Version`), `experimentID`, UniqueName, -`Experiment ID`,-starts_with('order-'), -starts_with('checkpoint-'), -starts_with('branch-'), -any_of(col2remove)) %>%
     pivot_longer(cols=-c(experimentID,UniqueName),names_to = 'Field') %>%
     select(-value) %>%
-    bind_rows(Responses)
+    distinct() %>%
+    bind_rows(ResponseFields)
 }
+
 # the list (updated with online table, see top) goes to _TTranslateOrMap.csv
-TTranslateOrMap <- Responses %>% 
+TTranslateOrMap <- ResponseFields %>% 
   group_by(UniqueName, Field) %>% 
   group_keys() %>% 
   left_join(TTranslateOrMap,by=c('UniqueName','Field'))   %>%
   write_csv(file.path(params$datadir,'_TTranslateOrMap.csv'),na = '')
 
-# for each Task
 ToMap <- tibble()
 ToTranslate <- tibble()
+# for each Task
 for (f in fs) {
   # print(f)
   
   # skip if it's a questionnaire
   if (all(startsWith(read_csv(f$fname[1], col_types = cols(), n_max = 1)$`Tree Node Key`,'questionnaire'))) next
-
+  
   TranslateOrMap <- TTranslateOrMap %>% filter(UniqueName == unique(f$UniqueName))
   
   # reading all the data for one task, all runs, all experiments
-  tmp <- f %>% mutate(n=1:nrow(.)) %>%
+  Responses <- f %>% 
+    mutate(n=1:nrow(.)) %>%
     group_by(n) %>%
     group_modify(~ read_csv(.x$fname, col_types = cols(.default = col_character())) %>%
                    mutate(experimentID = .x$experimentID)) %>%
     mutate(UniqueName = unique(f$UniqueName)) %>%
-    ungroup()
+    ungroup() %>% 
+    select(`experimentID`, UniqueName, TranslateOrMap$Field, -`Experiment ID`,-starts_with('order-'), -starts_with('checkpoint-'), -starts_with('branch-'), -any_of(col2remove) , `Zone Type`)
   
-  tmp <- tmp %>% select(`experimentID`, UniqueName, -`Experiment ID`,-starts_with('order-'), -starts_with('checkpoint-'), -starts_with('branch-'), -any_of(col2remove))
-  
-  
-  # check whether question needs to be translated or mapped
-  Q <- unique(r$Question)
-  U <- unique(r$UniqueName)
-  TM <- unique(filter(QTranslateOrMap,Standard==Q, UniqueName == U)$TranslateOrMap)
-  
-  # if question is not found in online table, skip
-  if (length(TM)==0) {
-    print(paste('No response for', Q, U, '?',sep = ' '))
-    next
+  U <- unique(Responses$UniqueName)
+  if (U == 'SelfPref') stop()
+  # for each Field
+  for (Fi in TranslateOrMap$Field) {
+    # check whether question needs to be translated or mapped
+    TM <- unique(filter(TTranslateOrMap,Field==Fi, UniqueName == U)$TranslateOrMap)
+    
+    # if question was not found in online table, skip
+    if (length(TM)==0) {
+      print(paste('No response for', Q, U, '?',sep = ' '))
+      next
+    }
+    
+    
+    switch(TM,
+           M = {
+             # ToMap in wide format
+             # For each experimentID (i.e. language), list all unique Responses
+             eids <- unique(Responses$experimentID)
+              alluniques <- list()
+             for (i in eids) {
+               alluniques[[i]] = unique(filter(Responses,experimentID == i) %>%
+                                          drop_na(Fi) %>%
+                                          pull(Fi) %>%
+                                          sort())
+             }
+             # count how many different response in each experimentID (this is just to pad lists across experimentIDs)
+             ls <- sapply(alluniques,length)
+             
+             # now list responses in wide format with columns == experimentID
+             alluniques2 <- tibble(UniqueName = Responses$UniqueName[1], Field=Fi, `EN-GB` = character(length = max(ls)), .rows = max(ls))
+             for (i in eids) {
+               Country <- str_match(i,'.*_([\\w-]+)$')[,2]
+               alluniques2 <- mutate( alluniques2, !!Country := c(alluniques[[i]], rep(NA,max(ls) - ls[i])))
+             }
+             
+             ToMap <- bind_rows(ToMap, alluniques2)
+           },
+           T = {
+             # Totranslate in long format
+             ToTranslate <- Responses %>%
+               # only freetext responses are to be translated!
+               filter(`Zone Type` == 'response_text_entry') %>%
+               select(experimentID, UniqueName, all_of(Fi)) %>%
+               pivot_longer(Fi, names_to = 'Field', values_to = 'Value') %>%
+               drop_na() %>%
+               distinct() %>%
+               filter(is.na(suppressWarnings(as.numeric(Value)))) %>% 
+               bind_rows(ToTranslate)
+             
+           }
+    )
+    
   }
-  if (ncol(tmp) == 2) next
-  
-  ToMap <- tmp %>%
-    mutate_all(as.character) %>%
-    pivot_longer(cols =-c(experimentID,UniqueName),names_to = 'Field',values_to = 'Value') %>%
-    filter(Value != 'NA',
-           ! Field %in% c('stim','Stim','letters','duration','ANSWER','answer')) %>%
-    group_by(Field,experimentID,UniqueName) %>%
-    distinct() %>%
-    arrange(experimentID,UniqueName,Field,Value) %>%
-    bind_rows(ToMap) 
-  
-  # we assume that only columns called Response contain data to translate
-  ToTranslate <- tmp %>%
-    mutate_all(as.character) %>%
-    pivot_longer(cols =-c(experimentID,UniqueName),names_to = 'Field',values_to = 'Value') %>%
-    filter(Value != 'NA',
-           Field %in% c('Response'),
-           !str_detect(UniqueName,'DelayDiscount')) %>%
-    distinct() %>%
-    group_by(Field,experimentID,UniqueName) %>%
-    arrange(experimentID,UniqueName,Field,Value) %>%
-    bind_rows(ToTranslate) 
 }
 
 
-TToMap <- ToMap %>%
-  filter(is.na(as.numeric(Value))) %>%
-  group_by(experimentID,UniqueName,Field) %>%
-  mutate(n=1:n()) %>%
-  pivot_wider(names_from = experimentID,values_from = Value) %>%
-  select(-n) %>%
-  write_csv(f <- file.path(params$datadir,'ToMapSheetTask.csv'),na = '')
+ToMap %>%
+  arrange(UniqueName,Field) %>%
+  write_csv(file.path(params$datadir,'ToMapSheetTask_new.csv'),na = '')
 
-TToTranslateT <- ToTranslate %>% ungroup() %>%
-  # add_row(experimentID = '14926_EN-GB',UniqueName='S1_1back',Field = 'ANSWER',Value = 'Up',.before=10) %>%
-  filter(is.na(as.numeric(Value))) %>%
-  mutate(Translated = NA) %>%
-  distinct() %>%
-  left_join(TToTranslate,by = c('experimentID','UniqueName','Field','Value')) %>%
-  unite(col = Translated,Translated.y, Translated.x,sep = ' ',na.rm=T) %>%
-  mutate(Translated = str_remove(Translated,'NA')) %>% 
-  arrange(experimentID, UniqueName, Field) %>%
-  write_csv(f <- file.path(params$datadir,'ToTranslateSheetTask.csv'),na='')
+dum <- ToTranslate %>%
+  filter(!is.na(Value)) %>%
+  left_join(TToTranslate %>% mutate(UniqueName = str_replace(UniqueName, '^S._','')) %>% distinct(experimentID, UniqueName, Field, Value, Comment, .keep_all = T), by = c("UniqueName", "Field", "experimentID", "Value")) %>%
+  # unite('Translated',Translated.x, Translated.y) %>%
+  # mutate(Translated = str_replace(Translated,'NA_','')) %>%
+  mutate(Country = str_match(experimentID,'.*_([\\w-]+)$')[,2]) %>%
+  select(-experimentID) %>%
+  arrange(Country, UniqueName, Field, Value) %>%
+  write_csv(file.path(params$datadir,'ToTranslateSheetTask_new.csv'),na='')
 
 ```
+
