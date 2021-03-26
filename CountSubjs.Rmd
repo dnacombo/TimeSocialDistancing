@@ -5,7 +5,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/data_exp_210125'
+  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/'
 output:
   html_notebook:
     code_folding: hide
@@ -20,7 +20,7 @@ output:
 ```{r, message=F}
 source('helpers.R')
 
-l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
+l <- paramsMatch(params = params,experimentIDs = ExperimentIDs)
 l$datadir <- params$datadir
 
 ```
