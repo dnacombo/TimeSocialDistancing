@@ -1,6 +1,31 @@
 
 source('helpers.R')
 
+for (Country in c('FR','DE','IT','TR','IN','GR','JP','CO','CA','AR', 'UK')) {
+  l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
+  l$datadir <- datadir
+  # rmarkdown::render(
+  #   'DataUnzip.Rmd',
+  #   output_file = paste0('Reports/01_DataUnzip_', Country[1]),
+  #   params = l,
+  # )
+  # 
+  # rmarkdown::render(
+  #   paste0('DataPIDMatch_', Country[1], '.Rmd'),
+  #   output_file = paste0('Reports/02_DataPIDMatch_', Country[1]),
+  #   params = l,
+  # )
+  
+  # rmarkdown::render(
+  #   paste0('DateLayout.Rmd'),
+  #   output_file = paste0('Reports/03_DateLayout_', Country[1]),
+  #   params = l,
+  # )
+  
+}
+
+stop('here')
+
 ################################ FR #######################################
 Country = 'FR'
 
@@ -171,7 +196,25 @@ Country = 'CA'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
 l$datadir <- datadir
-  
+
+rmarkdown::render(
+  'DataUnzip.Rmd',
+  params = l,
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
+)
+
+rmarkdown::render(
+  paste0('DateLayout.Rmd'),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
+  params = l,
+)
+
+########################### DE ##############################################
+Country = 'DE'
+
+l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
+l$datadir <- datadir
+
 rmarkdown::render(
   'DataUnzip.Rmd',
   params = l,
@@ -189,7 +232,24 @@ Country = 'AR'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
 l$datadir <- datadir
-  
+
+rmarkdown::render(
+  'DataUnzip.Rmd',
+  params = l,
+  output_file = paste0('Reports/01_DataUnzip_', Country[1]),
+)
+rmarkdown::render(
+  paste0('DateLayout.Rmd'),
+  output_file = paste0('Reports/03_DateLayout_', Country[1]),
+  params = l,
+)
+
+########################### UK ################################################
+Country = 'UK'
+
+l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
+l$datadir <- datadir
+
 rmarkdown::render(
   'DataUnzip.Rmd',
   params = l,
