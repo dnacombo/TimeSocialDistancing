@@ -1,13 +1,13 @@
 ---
 title: "Date layout"
 params:
-  Country: FR
+  Country: IN
   ExperimentName: null
   ExperimentID: null
   Session: null    
   datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
-  html_notebook:
+  html_document: 
     code_folding: hide
     df_print: paged
     toc: yes
@@ -46,14 +46,19 @@ ggplot(count,aes(x=UniqueName,y=N,fill = Session)) +
 
 ```{r}
 count %>%
-  pivot_wider(id_cols = c(Session,UniqueName), names_from = Country, values_from=N) 
+  pivot_wider(id_cols = c(Session,Run,UniqueName), names_from = Country, values_from=N) 
 ```
 
 ## Tasks, dates, and PID
 
 Finishing times sorted by Participant and completion date.
 
-```{r, fig.width=20}
+```{r include = FALSE}
+# Why, oh why do I need this chunk?
+datatable(NULL)
+```
+
+```{r results='asis'}
 
 allPIDs <- alldata %>% group_by(`Participant Private ID`) %>%
   filter(`Trial Number`  =='END TASK' | `Question Key` == 'END QUESTIONNAIRE') %>%
@@ -61,7 +66,11 @@ allPIDs <- alldata %>% group_by(`Participant Private ID`) %>%
   arrange(PID, `UTC Date`) %>%
   mutate(`UTC Date` = lubridate::ymd_hms(`UTC Date`)) %>%
   select(`UTC Date`,UniqueName,Run,PID, starts_with('S')) %>%
-  datatable(options = list(pageLength = 20)) %>% print()
+  datatable() %>%
+  htmltools::tagList() %>%
+  print()
+
+
 ```
 
 
