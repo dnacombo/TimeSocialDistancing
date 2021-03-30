@@ -65,6 +65,7 @@ for (f in fs) {
   eid <- unique(f$`experimentID`)
   Country <- str_match(eid,'.*_([\\w-]+)$')[2]
   
+  
   # Retrieve Question Keys into a column:
   d <- tibble(Question = unique(tmp$`Question Key`)) %>%
     mutate(experimentID = eid,
@@ -174,7 +175,7 @@ for (r in splitResponses) {
          T = {
            # Totranslate in long format
            ToTranslate <- alluniques2 %>% select(-`EN-GB`) %>%
-             pivot_longer(cols = -c('UniqueName', 'Question'), names_to = "experimentID",values_to = 'Response') %>%
+             pivot_longer(cols = -c('UniqueName', 'Question'), names_to = "Country",values_to = 'Response') %>%
              mutate(Translated = NA) %>%
              bind_rows(ToTranslate)
            
@@ -192,8 +193,6 @@ names(QuestionRecoder) <- tmp$Question
 ToTranslate %>% 
   # add_row(UniqueName='S1_IQ', Question='IQ_4-text', experimentID='15096-16303_FR',Response='TEST', .before = 17) %>%
   filter(!is.na(Response)) %>%
-  mutate(Country = str_match(experimentID,'.*_([\\w-]+)$')[,2]) %>%
-  select(-experimentID) %>%
   full_join(QToTranslate %>% mutate(UniqueName = str_replace(UniqueName, '^S._','')) %>% 
               distinct(Country, UniqueName, Question, Response, .keep_all = T) %>%
               mutate(Question = recode(Question,!!!QuestionRecoder)), 
@@ -312,7 +311,7 @@ for (f in fs) {
                # only freetext responses are to be translated!
                filter(`Zone Type` == 'response_text_entry') %>%
                select(experimentID, UniqueName, all_of(Fi)) %>%
-               pivot_longer(Fi, names_to = 'Field', values_to = 'Value') %>%
+               pivot_longer(all_of(Fi), names_to = 'Field', values_to = 'Value') %>%
                drop_na() %>%
                distinct() %>%
                filter(is.na(suppressWarnings(as.numeric(Value)))) %>% 
@@ -329,7 +328,7 @@ ToMap %>%
   arrange(UniqueName,Field) %>%
   write_csv(file.path(params$datadir,'ToMapSheetTask_new.csv'),na = '')
 
-dum <- ToTranslate %>%
+ToTranslate %>%
   filter(!is.na(Value)) %>%
   left_join(TToTranslate %>% mutate(UniqueName = str_replace(UniqueName, '^S._','')) %>% distinct(experimentID, UniqueName, Field, Value, Comment, .keep_all = T), by = c("UniqueName", "Field", "experimentID", "Value")) %>%
   # unite('Translated',Translated.x, Translated.y) %>%
