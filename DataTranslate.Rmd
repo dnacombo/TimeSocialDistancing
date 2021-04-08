@@ -199,7 +199,8 @@ ToTranslate %>%
   full_join(QToTranslate %>% mutate(UniqueName = str_replace(UniqueName, '^S._','')) %>% 
               distinct(Country, UniqueName, Question, Response, .keep_all = T) %>%
               mutate(Question = recode(Question,!!!QuestionRecoder)), 
-            by = c("UniqueName", "Question", "Country", "Response", "Translated")) %>%
+            by = c("UniqueName", "Question", "Country", "Response")) %>%
+  unite(col = 'Translated', starts_with('Translated'),remove = F,na.rm = T)%>%
   arrange(Country, UniqueName, Question) %>%
   select(Country,UniqueName,Question,Response,Translated) %>%
   distinct() %>%
@@ -272,7 +273,6 @@ for (f in fs) {
     select(`experimentID`, UniqueName, TranslateOrMap$Field, -`Experiment ID`,-starts_with('order-'), -starts_with('checkpoint-'), -starts_with('branch-'), -any_of(col2remove) , `Zone Type`)
   
   U <- unique(Responses$UniqueName)
-  if (U == 'SelfPref') stop()
   # for each Field
   for (Fi in TranslateOrMap$Field) {
     # check whether question needs to be translated or mapped
