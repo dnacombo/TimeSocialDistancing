@@ -91,8 +91,7 @@ for (f in fs) {
                      Question = d1$Question, 
                      Response = sort(unique(filter(tmp,`Question Key` == d1$Question)$`Response`))
     )%>%
-      filter(!is.na(Response),
-             is.na(suppressWarnings(as.numeric(Response)))) %>% # keeping only responses that are not numeric
+      filter(!is.na(Response))%>%
       arrange(Response) %>%
       bind_rows(w)
   }
@@ -126,6 +125,7 @@ QTranslateOrMap <- Responses %>%
 
 # Now split the list of Responses to all Questions and Questionnaire
 splitResponses <- Responses %>%
+  filter(is.na(suppressWarnings(as.numeric(Response)))) %>% # keeping only responses that are not numeric)
   # Standardize Question name
   mutate(Question = str_replace(Question,'(HADS_._..)-.','\\1'),
          Question = str_replace(Question,'selff','self')) %>%
