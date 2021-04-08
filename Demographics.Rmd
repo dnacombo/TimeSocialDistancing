@@ -69,15 +69,15 @@ Demo <- demo %>%
   mutate(`Question Key` = recode(`Question Key`,!!!recoder)) %>%
   select(`Experiment ID`, `PID`, Session, `Question Key`, `Response`, `UTC Date`) %>%
   group_by(`Experiment ID`) %>%
-  mutate(ExperimentName = ID2Name(`Experiment ID`,ExperimentIDs = ExperimentIDs)) %>%
+  mutate(Country = as.factor(ID2Country(`Experiment ID`,ExperimentIDs = ExperimentIDs))) %>%
   ungroup() %>%
   mutate(`Question Key` = recode(`Question Key`,
                                  `dob-year` = "Age-year",
                                  `dob-month` = "Age-month")) %>%
   filter(`Question Key` %in% c("Age-year", "Age-month", "sex-quantised", "Handedness", "DOB")) %>%
   mutate(`UTC Date` = floor_date(ymd_hms(`UTC Date`), unit = 'days')) %>%
-  pivot_wider(id_cols = c(ExperimentName,Session,PID, `UTC Date`), values_from = Response, names_from = `Question Key`, values_fn = first) %>%
-  mutate(Sex = as.factor(recode(`sex-quantised`,`1`='M',`2`='F')),
+  pivot_wider(id_cols = c(Country,Session,PID, `UTC Date`), values_from = Response, names_from = `Question Key`, values_fn = first) %>%
+  mutate(Sex = as.factor(recode(`sex-quantised`,`1`='M',`2`='F',`2`='W')),
          Handedness = as.factor(recode(Handedness,!!!recodeHandedness)),
          Age = as.numeric(dyears(abs(as.numeric(`Age-year`))) + dmonths(abs(as.numeric(`Age-month`))),'years'),
          DOB2 =  floor_date(`UTC Date` - dyears(Age), unit = 'days'))
@@ -88,19 +88,23 @@ Demo <- Demo %>%
   mutate(Age = as.numeric(as.period(interval(end=as.Date(`UTC Date`), start = as.Date(DOB))),'years'),
          Age = ifelse(Age>100,NA,Age))
 # %>%
-#   select(ExperimentName,Session,PID,`UTC Date`,Age, Sex, Handedness)
+#   select(Country,Session,PID,`UTC Date`,Age, Sex, Handedness)
+```
+```{r}
+skimr::skim(Demo)
 ```
 
 ```{r}
 
-ggplot(Demo,aes(x=Age,fill=ExperimentName)) +
-  geom_histogram(position = 'dodge',bins = 30) + 
-  facet_wrap(~ExperimentName, scales = 'free_y') +
+ggplot(Demo,aes(x=Age,fill=Country)) +
+  geom_histogram(position = 'dodge',bins = 30, show.legend = F) + 
+  facet_wrap(~Country, scales = 'free_y') +
+  xlim(0,80) + 
   ggtitle('Age distribution across countries')
 
 library(ggridges)
-ggplot(Demo, aes(y= ExperimentName, x= Age,  fill= ExperimentName)) +
-  geom_density_ridges(alpha=0.6, bins=50) +
+ggplot(Demo, aes(y= Country, x= Age,  fill= Country)) +
+  geom_density_ridges(alpha=0.6) +
   theme_ridges() +
   theme(legend.position="none",
         strip.text.x = element_text(size = 8)) +
@@ -108,19 +112,19 @@ ggplot(Demo, aes(y= ExperimentName, x= Age,  fill= ExperimentName)) +
   theme(plot.title = element_text(face = "bold", "hjust" = 0.5)) +
   scale_x_continuous(breaks = seq(from = 0, to = 80, by = 5))
 
-Demo %>% group_by(ExperimentName) %>%
+Demo %>% group_by(Country) %>%
   mutate(n=n()) %>%
-  group_by(ExperimentName,Handedness) %>%
+  group_by(Country,Handedness) %>%
   summarize(H = n()/n) %>% distinct() %>%
-  ggplot(aes(x=ExperimentName,y=H,fill=Handedness)) +
+  ggplot(aes(x=Country,y=H,fill=Handedness)) +
   geom_col()  +
   ggtitle('Handedness proportions across countries')
 
-Demo %>% group_by(ExperimentName) %>%
+Demo %>% group_by(Country) %>%
   mutate(n=n()) %>%
-  group_by(ExperimentName,Sex) %>%
+  group_by(Country,Sex) %>%
   summarize(S = n()/n) %>% distinct() %>%
-  ggplot(aes(x=ExperimentName,y=S,fill=Sex)) +
+  ggplot(aes(x=Country,y=S,fill=Sex)) +
   geom_col()  +
   ggtitle('Sex proportions across countries')
 
