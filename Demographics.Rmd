@@ -48,12 +48,20 @@ Derecha,right-handed
 Right-handed,right-handed
 Left-handed,left-handed
 Ambidextrous,ambidextrous
+Rechtshändig,right-handed
+Linkshändig,left-handed
+Beidhändig,ambidextrous
 右利き,right-handed
 左利き,left-handed
 両利き,ambidextrous
 Droite,right-handed
 Gauche,left-handed
-Ambidextre,ambidextrous', col_names = F)
+Ambidextre,ambidextrous
+Ambidestro,ambidextrous
+Ambidiestro,ambidextrous
+Destrimane,right-handed
+Izquierda,left-handed
+Mancino,left-handed', col_names = F)
 recodeHandedness <- HandednessMap$X2
 names(recodeHandedness) <- HandednessMap$X1
 
