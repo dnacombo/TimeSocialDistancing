@@ -177,7 +177,7 @@ for (r in splitResponses) {
          },
          T = {
            # Totranslate in long format
-           ToTranslate <- alluniques2 %>% select(-`EN-GB`) %>%
+           ToTranslate <- alluniques2 %>%
              pivot_longer(cols = -c('UniqueName', 'Question'), names_to = "Country",values_to = 'Response') %>%
              mutate(Translated = NA) %>%
              bind_rows(ToTranslate)
