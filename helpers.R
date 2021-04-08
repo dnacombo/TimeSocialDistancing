@@ -19,6 +19,46 @@ gsheet2tbl <- function (url) {
   suppressMessages(read_csv(file=gsheet::gsheet2text(url, format='csv'), col_types = cols(.default = col_character())))
 }
 
+
+QTranslate <- function(orig) {
+  
+  QTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807') %>%
+    select(-Comment)
+  # The tables of previously translated materials (those we recompute now will be merged with these)
+  QToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=1845970270') %>%
+    select(-Comment) %>%
+    left_join(QTranslateOrMap, by = c('UniqueName', Question = 'Standard'), suffix = c('',' Key'))
+  
+  QToMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1GKqRiMRrqHv2BT524nFqOlHYuSrfAuTi5ypLmBKiyEw/edit#gid=1785683302') %>%
+    pivot_longer(cols = 4:last_col(), names_to = 'Country', values_to = 'Response') %>%
+    left_join(QTranslateOrMap, by = c('UniqueName', Question = 'Standard'), suffix = c('',' Key'))
+  
+  left_join(orig,QToTranslate, by = c('Country', 'UniqueName', 'Question Key', 'Response')) %>%
+    mutate(Response = ifelse(is.na(Translated),Response,Translated)) %>%
+    select(-(Question:last_col())) %>%
+    left_join(QToMap, by = c('Country', 'UniqueName', 'Question Key', 'Response')) %>%
+    mutate(Response = ifelse(is.na(`EN-GB`),Response,`EN-GB`)) %>%
+    select(-(Question:last_col()))
+}
+TTranslate <- function(orig) {
+  
+  TTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1pDTfJUJnFoUxUbEnOSQrACg0vqSDv2czC52_6fM9Ozc/edit#gid=0') %>%
+    select(-Comment, -TimeFormat)
+  # The tables of previously translated materials (those we recompute now will be merged with these)
+  TToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/16pewaHuHCu8YStxHvF9Nis_RZOB3hT4utYLm5T9DSS4/edit#gid=516354689') %>%
+    select(-Comment)
+  
+  TToMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1FrAebQ2Y9PQVMx-omsCbhkosmXJT371NNBWr_QhU4OU/edit#gid=36287472') %>%
+    pivot_longer(cols = 4:last_col(), names_to = 'Country', values_to = 'Value')
+  
+  tmp <- left_join(orig,TToTranslate, by = c('Country', 'UniqueName', 'Response' = 'Value')) %>%
+    mutate(Response = ifelse(is.na(Translated),Response,Translated)) %>%
+    select(-(Question:last_col())) %>%
+    left_join(QToMap, by = c('Country', 'UniqueName', 'Question Key', 'Response')) %>%
+    mutate(Response = ifelse(is.na(`EN-GB`),Response,`EN-GB`)) %>%
+    select(-(Question:last_col()))
+}
+
 UpdateTables <- function(datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', wherefrom='online') {
   
   f <- file.path(datadir,'NodeKeys.csv')
@@ -243,7 +283,7 @@ T_Complete <- function(orig) {
   p <- ggplot(d,aes(x = PID, y = Duration,fill= `Participant Private ID`)) +
     geom_col(show.legend = F) +
     theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
-    facet_grid(Session~Run) +
+    facet_grid(Session~Run, labeller = label_both) +
     ylab('Time to complete (s, log scale)') +
     scale_y_log10()
   
