@@ -18,16 +18,19 @@ editor_options:
 ```{r, message=F}
 source('helpers.R')
 
+gsheet2tbl <- function (url) {
+  suppressMessages(read_csv(file=gsheet::gsheet2text(url, format='csv'), col_types = cols(.default = col_character())))
+}
 # we first retrieve useful information:
 # Questions in Tasks/Questionnaires that need to be mapped vs. translated
-QTranslateOrMap <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807')
-TTranslateOrMap <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1pDTfJUJnFoUxUbEnOSQrACg0vqSDv2czC52_6fM9Ozc/edit#gid=0')
+QTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807')
+TTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1pDTfJUJnFoUxUbEnOSQrACg0vqSDv2czC52_6fM9Ozc/edit#gid=0')
 # The tables of previously translated materials (those we recompute now will be merged with these)
-QToTranslate <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=1845970270')
-TToTranslate <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/16pewaHuHCu8YStxHvF9Nis_RZOB3hT4utYLm5T9DSS4/edit#gid=1172154924')
+QToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=1845970270')
+TToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/16pewaHuHCu8YStxHvF9Nis_RZOB3hT4utYLm5T9DSS4/edit#gid=1172154924')
 
 # Doe HADS questionnaire, we need to reorder some of the question labels. The translation sheet is found online.
-HADS_exception <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1KYTDeW_RacsZcPK-fMwKz5rw9dmxKQW4S1L6l8CeJg0/edit#gid=0')
+HADS_exception <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1KYTDeW_RacsZcPK-fMwKz5rw9dmxKQW4S1L6l8CeJg0/edit#gid=0')
 ```
 
 ### For questionnaires
