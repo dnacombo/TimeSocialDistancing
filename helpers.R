@@ -15,6 +15,9 @@ if (!exists('params')) {
 
 
 source('gimmedata.R')
+gsheet2tbl <- function (url) {
+  suppressMessages(read_csv(file=gsheet::gsheet2text(url, format='csv'), col_types = cols(.default = col_character())))
+}
 
 UpdateTables <- function(datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', wherefrom='online') {
   
