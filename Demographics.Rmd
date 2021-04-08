@@ -21,11 +21,19 @@ output:
 
 source('helpers.R')
 library(lubridate)
+l <- paramsMatch(params,
+                 experimentIDs = ExperimentIDs)
+l$datadir <- params$datadir
 
-demo <- gimmedata(DataDir = datadir, UniqueName = 'Demographics', verbose = F)
+demo <- gimmedata(DataDir = datadir, ExperimentID = paste(l$ExperimentID,collapse='|'), UniqueName = 'Demographics', verbose = F) %>%
+  mutate(Country = recode(`Experiment ID`,!!!l$Country),.before = 1)
 
-Keys <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=0') %>%
-  filter(UniqueName == 'S1_Demographics')
+gsheet2tbl <- function (url) {
+  read_csv(file=gsheet::gsheet2text(url, format='csv'), col_types = cols(.default = col_character()))
+}
+
+Keys <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807') %>%
+  filter(UniqueName == 'Demographics')
 
 recoder <- Keys$Standard
 names(recoder) <- Keys$Question
