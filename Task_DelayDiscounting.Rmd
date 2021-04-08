@@ -1,10 +1,14 @@
 ---
 title: "Extracting data for Task Delay Discouting"
 params:
-  experimentID: 16257
+  Country: TR
+  ExperimentName: null
+  ExperimentID: null
+  Session: null    
   datadir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA
 output:
   html_document:
+    code_folding: hide
     df_print: paged
     toc: yes
   html_notebook:
@@ -12,12 +16,21 @@ output:
     toc: yes
 ---
 
-
 ```{r, message=F}
-library(tidyverse)
-library(ggbeeswarm)
+# load a few helpers functions and variables
 source('helpers.R')
+
+# find out which experiment name, ID, session... we're talking about
+l <- paramsMatch(params,
+                 experimentIDs = ExperimentIDs)
+l$datadir <- params$datadir
+
+library(ggbeeswarm)
+library(ggrepel)
+library(afex)
+library(skimr)
 ```
+
 
 ```{r, message=F}
 
