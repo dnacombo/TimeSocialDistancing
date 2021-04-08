@@ -202,6 +202,7 @@ ToTranslate %>%
             by = c("UniqueName", "Question", "Country", "Response", "Translated")) %>%
   arrange(Country, UniqueName, Question) %>%
   select(Country,UniqueName,Question,Response,Translated) %>%
+  distinct() %>%
   write_csv(f <- file.path(params$datadir,'ToTranslateSheetQuestionnaire_new.csv'),na='')
 
 ```
@@ -339,6 +340,7 @@ ToTranslate %>%
   mutate(Country = str_match(experimentID,'.*_([\\w-]+)$')[,2]) %>%
   select(-experimentID) %>%
   arrange(Country, UniqueName, Field, Value) %>%
+  distinct() %>%
   write_csv(file.path(params$datadir,'ToTranslateSheetTask_new.csv'),na='')
 
 ```
