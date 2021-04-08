@@ -86,7 +86,14 @@ Demo <- Demo %>%
   select(-DOB) %>%
   rename(DOB = DOB2) %>%
   mutate(Age = as.numeric(as.period(interval(end=as.Date(`UTC Date`), start = as.Date(DOB))),'years'),
-         Age = ifelse(Age>100,NA,Age))
+         Age = ifelse(between(Age,5,90),Age,NA),
+         Age = round(Age, digits = 1),
+         Session = as.factor(Session),
+         PID = as.factor(PID)) %>%
+  select(-`Age-month`, -`Age-year`, -`sex-quantised`) %>%
+  write_csv(file.path(params$datadir,'Demographics.csv'), na = '') %>%
+  save(Demo,file = file.path(params$datadir,'Demographics.RData'))
+
 # %>%
 #   select(Country,Session,PID,`UTC Date`,Age, Sex, Handedness)
 ```
