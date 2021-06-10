@@ -54,7 +54,36 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
     }
     d <- bind_rows(d,tmp)
   }
+  if (progress) cat('\n')
   d %>% select(Session,UniqueName,Run,matches('PID'),everything()) %>%
     mutate(`UTC Date` = lubridate::dmy_hms(`UTC Date`),
            `Local Date` = lubridate::dmy_hms(`Local Date`))
+}
+
+
+gimmeRdata <- function(DataDir = getwd(), UniqueName = '.*', ExperimentID = '[0-9]{5}', Country = '.*', Session = '.*', Run = '.*', file = '',  clean = T, verbose = F, progress = F, clap = F) {
+  
+  fs <- list.files(path = DataDir, pattern = paste0('TSD_',UniqueName,'.RData'), full.names = T, recursive = F)
+  
+  if (progress) {
+    pb <- txtProgressBar(min = 0, max = length(fs), initial = 0, char = "=",
+                         width = 40, style = 3)
+    i <- 0
+  }
+  
+  D <- tibble()
+  for (f in fs) {
+    load(file = paste0(f))
+    D <- d %>%
+      filter(grepl(!!ExperimentID,Experiment_ID),
+             grepl(!!Country,Country),
+             grepl(!!Session,Session),
+             grepl(!!Run,Run)) %>%
+      bind_rows(D)
+    if (progress) {
+      i <- i + 1
+      setTxtProgressBar(pb,i)
+    }
+  }
+  return(D)
 }
