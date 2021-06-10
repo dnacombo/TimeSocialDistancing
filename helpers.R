@@ -86,14 +86,19 @@ UpdateTables <- function(datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Pro
     
     allnodes.S3 <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=1814296211') %>%
       filter(prefix != 'Comment')
+
+    allnodes.SC <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1Mwy2aGCJ6vSpp4a32NOs83e2H73MQRFUOL_193yb8sQ/edit#gid=644252489') %>%
+      filter(prefix != 'Comment')
     
-    (allnodes <- bind_rows(allnodes.S1,
-                           allnodes.S2,
-                           allnodes.S3,.id = "Session")%>%
+    (allnodes <- bind_rows(`1` = allnodes.S1,
+                           `2` = allnodes.S2,
+                           `3` = allnodes.S3,
+                           `5_Control` = allnodes.SC,
+                           .id = "Session")%>%
         mutate_all(.funs = ~ na_if(.,'N/A'))) %>%
       write_csv(f)
     
-    rm(allnodes.S1,allnodes.S2,allnodes.S3)
+    rm(allnodes.S1,allnodes.S2,allnodes.S3,allnodes.SC)
   } else {
     allnodes <- read_csv(f, col_types = cols())
   }
