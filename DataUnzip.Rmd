@@ -103,6 +103,10 @@ for (f in fs) {
   }
   
   fw <- file.path(sessiondatadir[str_detect(sessiondatadir,eid)], paste0(CurrNode$UniqueName, '_v-', unique(d$`Experiment Version`), '.csv'))
+  if (file.exists(fw)) {
+    d <- read_csv(fw,col_types = cols(.default = col_character())) %>%
+      bind_rows(d)
+  }
   dum <- write_csv(d, file = fw)
   # cat(paste0(basename(f),' --> ', basename(fw), ': OK'), sep = '\n')
   
