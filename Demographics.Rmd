@@ -82,7 +82,7 @@ Demo <- demo %>%
          Age = as.numeric(dyears(abs(as.numeric(`Age-year`))) + dmonths(abs(as.numeric(`Age-month`))),'years'),
          DOB2 =  floor_date(`UTC Date` - dyears(Age), unit = 'days'))
 Demo$DOB2[is.na(Demo$DOB2)] <- parse_date_time(Demo$DOB[is.na(Demo$DOB2)],orders = '%d.%m.%y',truncated = 1)
-Demo <- Demo %>%
+Demographics <- Demo %>%
   select(-DOB) %>%
   rename(DOB = DOB2) %>%
   mutate(Age = as.numeric(as.period(interval(end=as.Date(`UTC Date`), start = as.Date(DOB))),'years'),
@@ -91,12 +91,14 @@ Demo <- Demo %>%
          Session = as.factor(Session),
          PID = as.factor(PID)) %>%
   select(-`Age-month`, -`Age-year`, -`sex-quantised`) %>%
-  write_csv(file.path(params$datadir,'Demographics.csv'), na = '') %>%
-  save(Demo,file = file.path(params$datadir,'Demographics.RData'))
+  write_csv(file.path(params$datadir,'Demographics.csv'), na = '')
+
+save(Demographics,file = file.path(params$datadir,'Demographics.RData'))
 
 # %>%
 #   select(Country,Session,PID,`UTC Date`,Age, Sex, Handedness)
 ```
+
 ```{r}
 skimr::skim(Demo)
 ```
