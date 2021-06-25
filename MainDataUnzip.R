@@ -38,14 +38,14 @@ rmarkdown::render(
   output_file = paste0('Reports/01_DataUnzip_', Country[1]),
 )
 
-l <- paramsMatch(Country=Country,Session = '5_Control', experimentIDs = ExperimentIDs)
-l$datadir <- datadir
-
-rmarkdown::render(
-  'DataUnzip.Rmd',
-  params = l,
-  output_file = paste0('Reports/01_DataUnzip_', Country[1], '_ControlSession'),
-)
+# l <- paramsMatch(Country=Country,Session = '5_Control', experimentIDs = ExperimentIDs)
+# l$datadir <- datadir
+# 
+# rmarkdown::render(
+#   'DataUnzip.Rmd',
+#   params = l,
+#   output_file = paste0('Reports/01_DataUnzip_', Country[1], '_ControlSession'),
+# )
 
 rmarkdown::render(
   paste0('DataPIDMatch_', Country[1], '.Rmd'),
