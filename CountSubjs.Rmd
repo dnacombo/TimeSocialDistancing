@@ -5,7 +5,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/'
+  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/RData'
 output:
   html_notebook:
     code_folding: hide
@@ -20,35 +20,93 @@ output:
 ```{r, message=F}
 source('helpers.R')
 
-l <- paramsMatch(params = params,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
 
 ```
 
 ```{r}
-d <- gimmedata(DataDir = params$datadir, ExperimentName = paste(l$ExperimentName,collapse='|'), verbose = F) %>%
-  group_by(`Experiment ID`)%>%
-  mutate(Country = ID2Country(ExperimentID = `Experiment ID`, ExperimentIDs = ExperimentIDs))
+d <- gimmeRdata(DataDir = params$datadir, Country = params$Country, progress = T)
 
+```
+```{r}
+toplot <- d %>% group_by(PID,Unique_Name,Run,Session) %>%
+  filter(`Trial_Number`  =='END TASK' | `Question_Key` == 'END QUESTIONNAIRE') %>%
+  arrange(`UTC_Date`) 
+
+
+sessionDates <- toplot %>%
+  group_by(Session) %>%
+  summarize(Start = first(`UTC_Date`),
+            Stop = last(`UTC_Date`)) %>%
+  select(Session,Start,Stop)
+
+# confinement <- tibble(Date = lubridate::ymd_hms(c('2020/03/17 12:00:00','2020/05/11 23:59:59','2020/10/30 00:00:00', '2020/12/15 23:59:59'),tz = 'CET'), Session = c(1,1,2,2), Begend = c('Start','Stop','Start','Stop')) %>%
+#   pivot_wider(values_from=Date,names_from=Begend)
+
+ggplot(toplot,aes(x=`UTC_Date`, y=PID, col=Unique_Name, shape = Session)) +
+  geom_point() +
+  # geom_ribbon(aes(xmin = Start, xmax = Stop, fill = Session, x = NA, y = NA, col = NA, shape = NA), data=sessionDates) +
+  # geom_ribbon(aes(xmin = Start, xmax = Stop,fill=Session, x = NA, y = NA, col = NA, shape = NA), data=confinement) +
+  geom_vline(aes(xintercept = Start),linetype = 2,data=sessionDates) +
+  geom_vline(aes(xintercept = Stop),linetype = 3,data=sessionDates) +
+  theme(axis.text.y = element_blank(),
+        axis.ticks.y = element_blank()) +
+  xlab('Date') + ylab('Participants')
+
+```
+``
+```{r}
+everyday = d %>%
+  arrange(UTC_Date) %>%
+  slice(1,n()) %>%
+  transmute(Day = lubridate::date(UTC_Date))
+everyday = expand_grid(PID = unique(d$PID),Day=seq(everyday$Day[1], everyday$Day[2], by = 1))
+
+
+toplot <- d %>% 
+  group_by(PID,Unique_Name,Run,Session) %>%
+  filter(`Trial_Number`  =='END TASK' | `Question_Key` == 'END QUESTIONNAIRE') %>%
+  arrange(`UTC_Date`) %>%
+  mutate(Day = lubridate::date(UTC_Date)) %>%
+  group_by(Country,PID) %>%
+  slice(1,n()) %>%
+  mutate(ud = c(1,-1)) %>%
+  select(Country,Session, Day, PID, ud) %>%
+  full_join(everyday,by = c('PID','Day'))%>%
+  arrange(PID, Day) %>%
+  group_by(PID) %>%
+  mutate(cumcount = cumsum(ud)) %>%
+  group_by(Country, Day) %>%
+  summarize(cumcount = sum(cumcount))
 ```
 
 
 ```{r}
+%>%
+  group_by(Session,Country, Day) %>%
+  summarize(N = n())
+
+ggplot(toplot, aes(x=Day, y=N)) +
+  geom_bar(stat='identity')
+
+```
+
+```{r}
+
 count <- tibble()
-if ('Trial Number' %in% colnames(d)) {
-  count <- filter(d,`Trial Number` == 'END TASK') %>%
-    group_by(Country,Session,  UniqueName) %>%
+if ('Trial_Number' %in% colnames(d)) {
+  count <- filter(d,`Trial_Number` == 'END TASK') %>%
+    group_by(Country,Session,  Unique_Name) %>%
     summarize(N = n()) %>%
     bind_rows(count)
 }
-if ('Question Key' %in% colnames(d)) {
-  count <- filter(d,`Question Key` == 'END QUESTIONNAIRE') %>%
-  group_by(Country,Session,  UniqueName) %>%
-  summarize(N = n()) %>%
+if ('Question_Key' %in% colnames(d)) {
+  count <- filter(d,`Question_Key` == 'END QUESTIONNAIRE') %>%
+    group_by(Country,Session,  Unique_Name) %>%
+    summarize(N = n()) %>%
     bind_rows(count)
 }
 
-ggplot(count,aes(x=UniqueName,y=N,fill = Session)) +
+ggplot(count,aes(x=Unique_Name,y=N,fill = Session)) +
   facet_wrap(~ Country) +
   geom_col(position = position_dodge(width = 1)) +
   geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) +
@@ -61,4 +119,4 @@ count %>%
   pivot_wider(id_cols = c(Session,UniqueName), names_from = Country, values_from=N) 
 ```
 
- 
+
