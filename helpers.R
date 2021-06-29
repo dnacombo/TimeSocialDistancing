@@ -97,7 +97,7 @@ UpdateTables <- function(datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Pro
                            `2` = allnodes.S2,
                            `3` = allnodes.S3,
                            `4_Confinement2` = allnodes.S4,
-                           `5_Control` = allnodes.SC,
+                           `Control` = allnodes.SC,
                            .id = "Session")%>%
         mutate_all(.funs = ~ na_if(.,'N/A'))) %>%
       write_csv(f)
