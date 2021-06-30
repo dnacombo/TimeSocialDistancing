@@ -139,105 +139,110 @@ for (f in fs) {
 }
 ```
 
-### Storing column names in a table
+<!-- ### Storing column names in a table -->
 
-Storing the results in `ColumnNames.csv`
+<!-- Storing the results in `ColumnNames.csv` -->
 
-```{r}
-for (dr in sessiondatadir) {
-  fs <- list.files(dr,pattern='([^\\/]*).csv',full.names = T) %>%
-    tibble(fname=.) %>%
-    extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
-    group_by(UniqueName) %>%
-    group_split()
-  
-  d <- tibble()
-  for (f in fs) {
-    # get column names into a column
-    # print(f)
-    d <- suppressWarnings(read_csv(f$fname, col_types = cols(), n_max = 1)) %>%
-      colnames() %>%
-      tibble(Column = .) %>%
-      mutate(ExperimentID = paste(ExperimentID,collapse='-'),
-             UniqueName = f$UniqueName,
-             ColNum = 1:nrow(.)) %>%
-      bind_rows(d)
-  }
-  
-  if (nrow(d) >0){
-    extraColumnNames <- d %>% filter(!ColNum %in% seq(1,26),
-                                     !str_detect(Column,'(order|checkpoint|branch)'))
-    ColumnNames <- d %>%
-      pivot_wider(values_from = c('Column'),names_from = c('ExperimentID','UniqueName'),values_fn = list(Column = first))
-    
-    write_csv(ColumnNames,file = file.path(dr,'ColumnNames.csv'),na = '')
-    (ColumnNames)
-  }
-}
-```
+<!-- ```{r} -->
+<!-- for (dr in sessiondatadir) { -->
+<!--   fs <- list.files(dr,pattern='([^\\/]*).csv',full.names = T) %>% -->
+<!--     tibble(fname=.) %>% -->
+<!--     extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>% -->
+<!--     group_by(UniqueName) %>% -->
+<!--     group_split() -->
 
-```{r}
+<!--   d <- tibble() -->
+<!--   for (f in fs) { -->
+<!--     # get column names into a column -->
+<!--     # print(f) -->
+<!--     d <- suppressWarnings(read_csv(f$fname, col_types = cols(), n_max = 1)) %>% -->
+<!--       colnames() %>% -->
+<!--       tibble(Column = .) %>% -->
+<!--       mutate(ExperimentID = paste(ExperimentID,collapse='-'), -->
+<!--              UniqueName = f$UniqueName, -->
+<!--              ColNum = 1:nrow(.)) %>% -->
+<!--       bind_rows(d) -->
+<!--   } -->
 
-if ( !file.exists(f <- file.path(sessiondatadir[1],'extraColumnNames.csv'))){
-  allColumnNames <- extraColumnNames %>%
-    write_csv(f)
-} else {
-  # read all colum names in all seen experiments so far
-  allColumnNames <- suppressWarnings(read_csv(file = f,col_types = cols())) %>%
-    mutate(ExperimentID = as.character(ExperimentID)) %>%
-    # if ExperimentID exists already, update with current ColumnNames
-    filter( ExperimentID != paste(ExperimentID,collapse='-')) %>%
-    bind_rows(extraColumnNames) %>%
-    write_csv(f)
-}
+<!--   if (nrow(d) >0){ -->
+<!--     extraColumnNames <- d %>% filter(!ColNum %in% seq(1,26), -->
+<!--                                      !str_detect(Column,'(order|checkpoint|branch)')) -->
+<!--     ColumnNames <- d %>% -->
+<!--       pivot_wider(values_from = c('Column'),names_from = c('ExperimentID','UniqueName'),values_fn = list(Column = first)) -->
 
-# allColumnNames %>%
-#   group_by(ColNum,UniqueName) %>%
-#   summarize(n = n()) %>%
-#   ungroup() %>%
-#   summarize(`NExperiments` = unique(n))
+<!--     write_csv(ColumnNames,file = file.path(dr,'ColumnNames.csv'),na = '') -->
+<!--     (ColumnNames) -->
+<!--   } -->
+<!-- } -->
+<!-- ``` -->
 
-```
+<!-- ```{r} -->
+
+<!-- if ( !file.exists(f <- file.path(sessiondatadir[1],'extraColumnNames.csv'))){ -->
+<!--   allColumnNames <- extraColumnNames %>% -->
+<!--     write_csv(f) -->
+<!-- } else { -->
+<!--   # read all colum names in all seen experiments so far -->
+<!--   allColumnNames <- suppressWarnings(read_csv(file = f,col_types = cols())) %>% -->
+<!--     mutate(ExperimentID = as.character(ExperimentID)) %>% -->
+<!--     # if ExperimentID exists already, update with current ColumnNames -->
+<!--     filter( ExperimentID != paste(ExperimentID,collapse='-')) %>% -->
+<!--     bind_rows(extraColumnNames) %>% -->
+<!--     write_csv(f) -->
+<!-- } -->
+
+<!-- # allColumnNames %>% -->
+<!-- #   group_by(ColNum,UniqueName) %>% -->
+<!-- #   summarize(n = n()) %>% -->
+<!-- #   ungroup() %>% -->
+<!-- #   summarize(`NExperiments` = unique(n)) -->
+
+<!-- ``` -->
 
 
-### for questionnaires, storing question names in a table
+<!-- ### for questionnaires, storing question names in a table -->
 
-Storing the results in `QuestionKeys.csv`
+<!-- Storing the results in `QuestionKeys.csv` -->
 
-```{r, warning=F}
+<!-- ```{r, warning=F} -->
 
-for (dr in sessiondatadir) {
-  fs <- list.files(dr,pattern='(S[^\\/]*).csv',full.names = T) %>%
-    tibble(fname=.) %>%
-    extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>%
-    group_by(UniqueName) %>%
-    group_split()
-  
-  
-  d <- tibble()
-  for (f in fs) {
-    # get column names into a column
-    # print(f)
-    tmp <- suppressWarnings(read_csv(f$fname, col_types = cols()))
-    if (startsWith(unique(tmp$`Tree Node Key`),'task')) next
-    
-    d <- tibble(Question = unique(tmp$`Question Key`)) %>%
-      mutate(ExperimentID = paste(ExperimentID,collapse = '-'),
-             UniqueName = f$UniqueName,
-             KeyNum = 1:nrow(.)) %>%
-      bind_rows(d)
-    
-  }
-  
-  if (nrow(d) >0){
-    QuestionKeys <- d %>%
-      pivot_wider(values_from = c('Question'),names_from = c('ExperimentID','UniqueName'),values_fn = list(Column = first))
-    write_csv(QuestionKeys,file = file.path(dr,'QuestionKeys.csv'),na = '')
-    (QuestionKeys)
-  }
-}
+<!-- for (dr in sessiondatadir) { -->
+<!--   fs <- list.files(dr,pattern='(S[^\\/]*).csv',full.names = T) %>% -->
+<!--     tibble(fname=.) %>% -->
+<!--     extract(fname,into=c('UniqueName'),'([^\\/]*).csv',remove = F) %>% -->
+<!--     group_by(UniqueName) %>% -->
+<!--     group_split() -->
 
-```
+
+<!--   d <- tibble() -->
+<!--   for (f in fs) { -->
+<!--     # get column names into a column -->
+<!--     # print(f) -->
+<!--     tmp <- suppressWarnings(read_csv(f$fname, col_types = cols())) -->
+<!--     if (length(unique(tmp$`Tree Node Key`)) > 1) { -->
+<!--       cat('Warning, it seems that there are more keynodes than expected associated with this file. Check NodeKeys!') -->
+<!--       cat(f$fname, sep = '\n')  -->
+<!--       cat(unique(tmp$`Tree Node Key`), sep = '\n') -->
+<!--       next} -->
+<!--     if (startsWith(unique(tmp$`Tree Node Key`),'task')) next -->
+
+<!--     d <- tibble(Question = unique(tmp$`Question Key`)) %>% -->
+<!--       mutate(ExperimentID = paste(ExperimentID,collapse = '-'), -->
+<!--              UniqueName = f$UniqueName, -->
+<!--              KeyNum = 1:nrow(.)) %>% -->
+<!--       bind_rows(d) -->
+
+<!--   } -->
+
+<!--   if (nrow(d) >0){ -->
+<!--     QuestionKeys <- d %>% -->
+<!--       pivot_wider(values_from = c('Question'),names_from = c('ExperimentID','UniqueName'),values_fn = list(Column = first)) -->
+<!--     write_csv(QuestionKeys,file = file.path(dr,'QuestionKeys.csv'),na = '') -->
+<!--     (QuestionKeys) -->
+<!--   } -->
+<!-- } -->
+
+<!-- ``` -->
 
 
 
