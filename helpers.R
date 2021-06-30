@@ -2,14 +2,15 @@ library(tidyverse)
 options(dplyr.summarise.inform=F)
 options(gargle_oauth_email = 'maximilien.chaumon@gmail.com')
 
-
-if (!exists('params')) {
-  datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-} else {
-  if (is.null(params$datadir)) {
+if (!exists('datadir')){
+  if (!exists('params')) {
     datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
   } else {
-    datadir <- params$datadir
+    if (is.null(params$datadir)) {
+      datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+    } else {
+      datadir <- params$datadir
+    }
   }
 }
 
