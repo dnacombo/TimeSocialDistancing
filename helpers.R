@@ -20,6 +20,26 @@ gsheet2tbl <- function (url) {
   suppressMessages(read_csv(file=gsheet::gsheet2text(url, format='csv'), col_types = cols(.default = col_character())))
 }
 
+file.hide <- function(f) {
+  d <- dirname(f)
+  f <- basename(f)
+  hiddenf = file.path(d,paste0('.',f))
+  f <- file.path(d,f)
+  file.rename(f,hiddenf)
+}
+file.unhide <- function(f){
+  d <- dirname(f)
+  f <- basename(f)
+  originalf <- file.path(d,str_replace(f,'^\\.',''))
+  f <- file.path(d,f)
+  if (file.exists(originalf)) {
+    warning(paste0('Cannot unhide ', f, ', regular file with same name exists'))
+  }
+  else
+  {
+    file.rename(f,originalf)
+  }
+}
 
 QTranslate <- function(orig) {
   
