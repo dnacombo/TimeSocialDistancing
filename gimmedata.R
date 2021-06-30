@@ -141,7 +141,7 @@ gimmeRdata <- function(DataDir = getwd(), UniqueName = '.*',
   Country <- paste0('(',paste(Country,collapse = '|'),')')
   Session <- paste0('(',paste(Session,collapse = '|'),')')
   
-  fs <- list.files(path = DataDir, pattern = paste0('TSD_',Country,'_',Session,'_',UniqueName,'.RData'), full.names = T, recursive = F)
+  fs <- list.files(path = DataDir, pattern = paste0('^TSD_',Country,'_',Session,'_',UniqueName,'.RData'), full.names = T, recursive = F)
   cat(paste0('Loading ', humanReadable(sum(file.info(fs)$size)), ' from ', length(fs), ' files.\n'))
   if (progress) {
     pb <- txtProgressBar(min = 0, max = length(fs), initial = 0, char = "=",
