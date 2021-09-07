@@ -1,0 +1,42 @@
+# Tapping and TapVis data
+BLURSDAY DATABASE
+Analysis and code: Ignacio Spiousas and Rodrigo Laje
+
+
+Directory structure:
+
+`$WDIR/Data_analysis/code/`
+`tapping_aux_functions.R`
+
+`$WDIR/Data_analysis/paper/`
+`Tapping_figure.R`
+`TapVis_figure.R`
+
+`$WDIR/Data_analysis/data/`
+`data-Tapping_{$COUNTRY}_{$DATE}.RData`
+`data-TapVis_{$COUNTRY}_{$DATE}.RData` 
+
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,
+                      warning = FALSE,
+                      message = FALSE)
+```
+
+```{r}
+pacman::p_load(tidyverse, ggdist, ggpubr, rcartocolor, ggtext, patchwork, here, 
+               countrycode, janitor, Routliers, colorspace, pracma, mclust, lme4, patchwork)
+
+source(here('Data_analysis/code/tapping_aux_functions.R'))
+source(here('Data_analysis/paper/Tapping_figure.R'))
+source(here('Data_analysis/paper/TapVis_figure.R'))
+
+fig_paper_free_tapping | fig_paper_synchronization | fig_paper_continuation 
+  
+ggsave(here('Data_analysis/paper/output/fig_paper.png'), dpi = 300, width = 15, height = 15, units = "cm")
+ggsave(here('Data_analysis/paper/output/fig_paper.pdf'), width = 15, height = 15, units = "cm")
+
+
+```
+
