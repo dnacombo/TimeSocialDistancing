@@ -10,7 +10,7 @@ output:
     df_print: paged
     toc: yes
 params:
-  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  datadir: '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 editor_options: 
   chunk_output_type: console
 ---
@@ -21,13 +21,6 @@ source('helpers.R')
 gsheet2tbl <- function (url) {
   suppressMessages(read_csv(file=gsheet::gsheet2text(url, format='csv'), col_types = cols(.default = col_character())))
 }
-# we first retrieve useful information:
-# Questions in Tasks/Questionnaires that need to be mapped vs. translated
-QTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807')
-TTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1pDTfJUJnFoUxUbEnOSQrACg0vqSDv2czC52_6fM9Ozc/edit#gid=0')
-# The tables of previously translated materials (those we recompute now will be merged with these)
-QToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=1845970270')
-TToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/16pewaHuHCu8YStxHvF9Nis_RZOB3hT4utYLm5T9DSS4/edit#gid=1172154924')
 
 # Doe HADS questionnaire, we need to reorder some of the question labels. The translation sheet is found online.
 HADS_exception <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1KYTDeW_RacsZcPK-fMwKz5rw9dmxKQW4S1L6l8CeJg0/edit#gid=0')
@@ -36,6 +29,11 @@ HADS_exception <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1KYTDeW_Rac
 ### For questionnaires
 
 ```{r, warning=F}
+# we first retrieve useful information:
+# Questions in Tasks/Questionnaires that need to be mapped vs. translated
+QTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807')
+# The tables of previously translated materials (those we recompute now will be merged with these)
+QToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=1845970270')
 
 # first list all data files, ignore processed ones, extract experimentID and UniqueName
 fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
@@ -44,6 +42,7 @@ fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names
   extract(fname,into=c('experimentID','UniqueName'),'data_exp_([^\\/]*?)(?:_Session[^\\/]*)?/S._([^\\/]*).csv',remove = F) %>%
   mutate(UniqueName = str_replace(UniqueName,'_r[[:digit:]]+b?$',''),
          experimentID = as.factor(experimentID))%>%
+  # filter(UniqueName == 'ConfinementTrack') %>%
   group_by(UniqueName, experimentID) %>%
   group_split()
 
@@ -125,7 +124,9 @@ QTranslateOrMap <- Responses %>%
 
 # Now split the list of Responses to all Questions and Questionnaire
 splitResponses <- Responses %>%
-  filter(is.na(suppressWarnings(as.numeric(Response)))) %>% # keeping only responses that are not numeric)
+  filter(is.na(suppressWarnings(as.numeric(Response))), # keeping only responses that are not numeric
+          # but discard responses that match an expected pattern
+         UniqueName != "RetroDuration" | (UniqueName == "RetroDuration" & !str_detect(Response,'^.*?(\\d+).*?[:：].*?(\\d+).*?[:：].*?(\\d+).*?$'))) %>%
   # Standardize Question name
   mutate(Question = str_replace(Question,'(HADS_._..)-.','\\1'),
          Question = str_replace(Question,'selff','self')) %>%
@@ -141,21 +142,22 @@ ToTranslate <- tibble(UniqueName=character(), Question=character(), Translated=c
 for (r in splitResponses) {
   # if(str_detect(r$Question[1],'HADS.*-')) stop()
   
-  # For each experimentID (i.e. language), list all unique Responses
-  eids <- unique(r$experimentID)
+  # merge experimentIDs to countries
+  r <- mutate(r,Country = str_match(experimentID,'.*_([\\w-]+)$')[,2], .before = 1)
+  # For each Country (i.e. language), list all unique Responses
+  cts <- unique(r$Country)
   
   alluniques <- list()
-  for (i in eids) {
-    alluniques[[i]] = unique(filter(r,experimentID == i)$Response)
+  for (i in cts) {
+    alluniques[[i]] = unique(filter(r,Country == i)$Response)
   }
-  # count how many different response in each experimentID (this is just to pad lists across experimentIDs)
+  # count how many different response in each Country (this is just to pad lists across Countries)
   ls <- sapply(alluniques,length)
   
-  # now list responses in wide format with columns == experimentID
+  # now list responses in wide format with columns == Country
   alluniques2 <- tibble(UniqueName = r$UniqueName[1], Question=r$Question[1], `EN-GB` = character(length = max(ls)), .rows = max(ls))
-  for (i in eids) {
-    Country <- str_match(i,'.*_([\\w-]+)$')[,2]
-    alluniques2 <- mutate( alluniques2, !!Country := c(sort(unique(filter(r,experimentID == i)$Response)), rep(NA,max(ls) - ls[i])))
+  for (i in cts) {
+    alluniques2 <- mutate( alluniques2, !!i := c(sort(unique(filter(r,Country == i)$Response)), rep(NA,max(ls) - ls[i])))
   }
   
   # check whether question needs to be translated or mapped
@@ -193,7 +195,7 @@ tmp <- QTranslateOrMap %>% drop_na(UniqueName,Question,TranslateOrMap,Standard)
 QuestionRecoder <- tmp$Standard
 names(QuestionRecoder) <- tmp$Question
 
-ToTranslate %>% 
+toto <- ToTranslate %>% 
   # add_row(UniqueName='S1_IQ', Question='IQ_4-text', experimentID='15096-16303_FR',Response='TEST', .before = 17) %>%
   filter(!is.na(Response)) %>%
   full_join(QToTranslate %>% mutate(UniqueName = str_replace(UniqueName, '^S._','')) %>% 
@@ -201,9 +203,9 @@ ToTranslate %>%
               mutate(Question = recode(Question,!!!QuestionRecoder)), 
             by = c("UniqueName", "Question", "Country", "Response")) %>%
   unite(col = 'Translated', starts_with('Translated'),remove = F,na.rm = T)%>%
-  arrange(Country, UniqueName, Question) %>%
+  arrange(Country, UniqueName, Question, Response) %>%
+  distinct(Country, UniqueName, Question, Response, .keep_all = T) %>%
   select(Country,UniqueName,Question,Response,Translated) %>%
-  distinct() %>%
   write_csv(f <- file.path(params$datadir,'ToTranslateSheetQuestionnaire_new.csv'),na='')
 
 ```
@@ -211,6 +213,13 @@ ToTranslate %>%
 ### For tasks
 
 ```{r, warning=F}
+# we first retrieve useful information:
+# Questions in Tasks/Questionnaires that need to be mapped vs. translated
+TTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1pDTfJUJnFoUxUbEnOSQrACg0vqSDv2czC52_6fM9Ozc/edit#gid=0')
+# The tables of previously translated materials (those we recompute now will be merged with these)
+TToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/16pewaHuHCu8YStxHvF9Nis_RZOB3hT4utYLm5T9DSS4/edit#gid=1172154924')
+
+
 # first list all files, ignore processed ones, extract experimentID and UniqueName
 fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
