@@ -63,12 +63,12 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
            `Local Date` = lubridate::dmy_hms(`Local Date`))
 }
 
-
-gimmeRdata <- function(DataDir = getwd(), UniqueName = '.*', 
-                       ExperimentID = '[0-9]{5}', Country = '.*', 
-                       Session = '.*', Run = '.*',
+gimmeRdata <- function(DataDir = getwd(), UniqueName = '[^_]+', 
+                       ExperimentID = '[0-9]{5}', Country = '[^_]+', 
+                       Session = 'S[^_]+', Run = '[^_]*', ...,
                        progress = F,
-                       fast = T)
+                       fast = T,
+                       verbose = T)
   {
   
   humanReadable <- function (x, units = "auto", standard = c("IEC", "SI", "Unix"), 
@@ -137,13 +137,43 @@ gimmeRdata <- function(DataDir = getwd(), UniqueName = '.*',
                format(trimws(retval[2, ]), justify = justify[2]), sep = sep)
   }
   
+  if (length(UniqueName) > 1){
+    UniqueName <- paste0('(',paste(UniqueName,collapse = '|'),')')
+  }
+  if (length(Country) > 1) {
+    Country <- paste0('(',paste(Country,collapse = '|'),')')
+  }
+  if (length(Session) > 1) {
+    Session <- paste0('(',paste(Session,collapse = '|'),')')
+  }
   
-  UniqueName <- paste0('(',paste(UniqueName,collapse = '|'),')')
-  Country <- paste0('(',paste(Country,collapse = '|'),')')
-  Session <- paste0('(',paste(Session,collapse = '|'),')')
+  # if (file.exists(file.path(DataDir,'alldata.db'))) {
+  #   con <- dbConnect(SQLite(), file.path(DataDir,'alldata.db'))
+  #   allUniqueNames <- dbListTables(con)[!grepl('^sqlite_',allUniqueNames)]
+  #   
+  #   UniqueNames = allUniqueNames[str_detect(allUniqueNames,UniqueName)]
+  #   dd <- tibble()
+  #   for (UniqueName in UniqueNames) {
+  #     d <- tbl(con, UniqueName)
+  # 
+  #     dd <- bind_rows(dd,
+  #                     d %>%
+  #                       filter(stringr::str_detect(Country, !!Country),
+  #                              stringr::str_detect(Session, !!Session),
+  #                              # stringr::str_detect(Experiment_ID, !!ExperimentID),
+  #                              stringr::str_detect(Run, !!Run),
+  #                              ...) %>%
+  #                       collect()
+  #     )
+  #   }
+  #   return(dd)
+  # }
   
   fs <- list.files(path = DataDir, pattern = paste0('^TSD_',Country,'_',Session,'_',UniqueName,'.RData'), full.names = T, recursive = F)
-  cat(paste0('Loading ', humanReadable(sum(file.info(fs)$size)), ' from ', length(fs), ' files.\n'))
+  if (verbose) {
+    cat(paste0('Loading ', humanReadable(sum(file.info(fs)$size)), ' from ', length(fs), ' files.\n'))
+  }
+  if (length(fs) == 0) return(tibble())
   if (progress) {
     pb <- txtProgressBar(min = 0, max = length(fs), initial = 0, char = "=",
                          width = 40, style = 3)
@@ -176,6 +206,73 @@ gimmeRdata <- function(DataDir = getwd(), UniqueName = '.*',
       }
     }
   }
+  if (verbose) {
+    cat(paste0('Done.\n'))
+  }
   return(D)
+}
+
+
+add_StringencyIndex <- function(d)
+  {
+  
+  countryMapping <- c(FR = 'France',
+                      DE = 'Germany',
+                      IT = 'Italy',
+                      TR = 'Turkey',
+                      AR = 'Argentina',
+                      UK = 'United Kingdom',
+                      CA = 'Canada',
+                      CO = 'Colombia',
+                      GR = 'Greece', 
+                      IN = 'India',
+                      JP = 'Japan'
+  )
+  
+  stringencyIndex <- read_csv('TSDshiny/data/covid-stringency-index.csv',
+                              col_types = cols(
+                                Entity = col_character(),
+                                Code = col_character(),
+                                Day = col_date(format = ""),
+                                stringency_index = col_double())) %>%
+    filter(Entity %in% countryMapping) %>%
+    rename(Stringency_Index = stringency_index)
+  
+  d <- d %>% 
+    mutate(Day = lubridate::date(Local_Date)) %>%
+    mutate(Country2 = recode(Country,!!!countryMapping),.before = 1) %>%
+    left_join(stringencyIndex, by = c('Day', Country2 = 'Entity')) %>%
+    select(-Country2, -Code, -Day)
+  
+}
+
+add_demographics <- function(d) {
+  load(file = file.path('TSDshiny/data','Demographics.RData'))
+  
+  d %>% 
+    left_join(Demographics, by = 'PID')
+}
+
+add_SubjectiveConfinementIndices <- function(d){
+  load(file=file.path('TSDshiny/data',"SubjectiveConfinementIndices.RData"))
+  d %>% left_join(SubjectiveConfinementIndices, by= c('Country','PID', 'Session'))
+}
+
+add_SubjectiveConfinementDuration <- function(d){
+  if (! 'Local_Date' %in% colnames(d)) {
+    stop('Must have Local_Date to add ConfinementIndices')
+  }
+  load(file=file.path('TSDshiny/data',"SubjectiveConfinementDuration.RData"))
+  d %>% left_join(SubjectiveConfinementDuration, by= "PID") %>%
+    pivot_longer(cols = starts_with("Local_Date_CT"),names_to = 'CT',values_to = )
+    mutate(across(starts_with("Local_Date_CT"), ~ lubridate::ddays(lubridate::as.duration(lubridate::interval(end=Local_Date, start = .x))), .names = 'diff_{.col}'),
+           min_diff_Local_Date = min(c(diff_Local_Date_CT1, diff_Local_Date_CT2, diff_Local_Date_CT3), na.rm = T )) %>%
+    select(everything(), Local_Date, ends_with('CT1'), ends_with('CT2'), ends_with('CT3'))
+}
+
+
+add_TimeOfDay <- function(d){
+  d %>% mutate(Hour_Of_Day = lubridate::hour(Local_Date),
+               Time_Of_Day = cut(Hour_Of_Day, breaks = c(0,6,12,18,24), labels = c('night', 'morning', 'afternoon', 'evening')))
 }
 
