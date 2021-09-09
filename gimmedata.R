@@ -52,7 +52,8 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
                             -starts_with('Participant'),
                             `Participant Private ID`,
                             -`Tree Node Key`,
-                            -starts_with('Spreadsheet'))
+                            -starts_with('Spreadsheet'),
+                            matches('Spreadsheet Name'))
     }
     d <- bind_rows(d,tmp)
   }
