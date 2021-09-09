@@ -4,16 +4,28 @@ options(gargle_oauth_email = 'maximilien.chaumon@gmail.com')
 
 if (!exists('datadir')){
   if (!exists('params')) {
-    datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+    datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
   } else {
     if (is.null(params$datadir)) {
-      datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+      datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
     } else {
       datadir <- params$datadir
     }
   }
 }
 
+countryMapping <- c(FR = 'France',
+                    DE = 'Germany',
+                    IT = 'Italy',
+                    TR = 'Turkey',
+                    AR = 'Argentina',
+                    UK = 'United Kingdom',
+                    CA = 'Canada',
+                    CO = 'Colombia',
+                    GR = 'Greece', 
+                    IN = 'India',
+                    JP = 'Japan'
+)
 
 source('gimmedata.R')
 gsheet2tbl <- function (url) {
@@ -45,21 +57,30 @@ QTranslate <- function(orig) {
   
   QTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807') %>%
     select(-Comment)
+  
   # The tables of previously translated materials (those we recompute now will be merged with these)
   QToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=1845970270') %>%
     select(-Comment) %>%
-    left_join(QTranslateOrMap, by = c('UniqueName', Question = 'Standard'), suffix = c('',' Key'))
+    left_join(QTranslateOrMap, by = c('UniqueName', Question = 'Standard'), suffix = c('','_Key')) %>%
+    select(-Question_Key) %>%
+    distinct()
   
   QToMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1GKqRiMRrqHv2BT524nFqOlHYuSrfAuTi5ypLmBKiyEw/edit#gid=1785683302') %>%
     pivot_longer(cols = 4:last_col(), names_to = 'Country', values_to = 'Response') %>%
-    left_join(QTranslateOrMap, by = c('UniqueName', Question = 'Standard'), suffix = c('',' Key'))
+    left_join(QTranslateOrMap, by = c('UniqueName', Question = 'Standard'), suffix = c('','_Key')) %>%
+    distinct()
   
-  left_join(orig,QToTranslate, by = c('Country', 'UniqueName', 'Question Key', 'Response')) %>%
+  Question_Key_recoder <- QTranslateOrMap$Standard
+  names(Question_Key_recoder) <- QTranslateOrMap$Question
+    
+  toto <- orig %>%
+    mutate(Question_Key = recode(Question_Key,!!!Question_Key_recoder)) %>%
+    left_join(QToTranslate, by = c('Country', 'Unique_Name' = 'UniqueName', 'Question_Key' = 'Question', 'Response')) %>%
     mutate(Response = ifelse(is.na(Translated),Response,Translated)) %>%
-    select(-(Question:last_col())) %>%
-    left_join(QToMap, by = c('Country', 'UniqueName', 'Question Key', 'Response')) %>%
+    select(-(Translated:last_col())) %>%
+    left_join(QToMap, by = c('Country', 'Unique_Name' = 'UniqueName', 'Question_Key' = 'Question', 'Response')) %>%
     mutate(Response = ifelse(is.na(`EN-GB`),Response,`EN-GB`)) %>%
-    select(-(Question:last_col()))
+    select(-(`EN-GB`:last_col()))
 }
 TTranslate <- function(orig) {
   
@@ -198,7 +219,7 @@ Name2Country <- function(ExperimentName, ExperimentIDs) {
   return(dplyr::filter(ExperimentIDs,ExperimentName == EN)$Country)
 }
 
-paramsMatch <- function(params = NULL, ExperimentName = NULL, ExperimentID = NULL, Session = NULL, Country = NULL, experimentIDs) {
+paramsMatch <- function(params = NULL, ExperimentName = NULL, ExperimentID = NULL, Session = NULL, Country = NULL, experimentIDs = experimentIDs) {
   
   if (!is.null(params)) {
     dum <- list2env(params, envir = environment())
