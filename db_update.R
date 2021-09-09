@@ -1,14 +1,15 @@
 source('helpers.R')
 
-datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-outdir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
+# process some countries selectively (set to NULL for all)
+Country = 'JP' #NULL #'FR'
+UniqueName = NULL
 
-# library(DBI)
-# library(RSQLite)
-# 
-# con <- dbConnect(SQLite(), "alldata.db")
+datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+outdir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
 
-l <- as_tibble(paramsMatch(experimentIDs = ExperimentIDs))
+
+
+l <- as_tibble(paramsMatch(experimentIDs = ExperimentIDs, Country = Country))
 
 # list all files
 tbs <- list.files(datadir,'^(S[^_]*)_([^_]*)_?r?([^\\.]*)?.csv', recursive = T) %>%
@@ -22,13 +23,18 @@ tbs <- list.files(datadir,'^(S[^_]*)_([^_]*)_?r?([^\\.]*)?.csv', recursive = T) 
          ExperimentIDs = S[2],
          Country = S[3]
          ) %>%
-  select(-S)
+  select(-S) %>%
+  filter(Country %in% l$Country)
+if (!is.null(UniqueName)) {
+  tbs <- filter(tbs, UniqueName %in% !!UniqueName)
+}
 
 # is_here <- dbListTables(con)
 
 for (tb in unique(tbs$UniqueName)) {
+  cat('\n')
   cat(tb,sep = '\n')
-  ddd <- gimmedata(DataDir = datadir, UniqueName = tb) %>%
+  ddd <- gimmedata(DataDir = datadir, UniqueName = tb, ExperimentID = paste0(l$ExperimentID,collapse = '|')) %>%
     mutate(Country = recode(`Experiment ID`, !!!l$Country)) %>%
     janitor::clean_names(case = "parsed")
   if (tb == 'Metacog') {
@@ -39,19 +45,39 @@ for (tb in unique(tbs$UniqueName)) {
     ddd <- ddd %>% select(-ANSWER) %>%
       rename(ANSWER = answer)
   }
-  # dbWriteTable(con,tb,ddd)
+  
   # next
   for (co in unique(ddd$Country)) {
     dd <- filter(ddd, Country == co)
     for (S in unique(dd$Session)){
-      d <- filter(dd, Session == S)
+      d <- filter(dd, Session == S) %>%
+        mutate(Country_Name = recode(Country,!!!countryMapping)) %>%
+        select(Country_Name, Country, Session, Unique_Name, Run, PID, everything())
       save(d,file = file.path(outdir,paste0('TSD_',co,'_',S,'_',tb,'.RData')), compress = T)
     } 
   }
 }
 
-source('Anonymize.R')
+# copying to SQLite database
 
+# library(DBI)
+# library(RSQLite)
+# 
+# fs <- list.files(outdir,'TSD_[^_]+_[^_]+_[^\\.]+\\.RData', full.names = T)
+# allUniqueNames <- unique(str_match(string = fs, pattern = 'TSD_[^_]+_[^_]+_([^\\.]+)\\.RData')[,2])
+# 
+# con <- dbConnect(SQLite(), "alldata.db")
+# pb <- txtProgressBar(min = 0, max = length(allUniqueNames), initial = 0, char = "=",
+#                      width = 40, style = 3)
+# i <- 0
+# for (tb in allUniqueNames) {
+#   # cat(tb, sep = '\n')
+#   d <- gimmeRdata(DataDir = outdir, UniqueName = tb, verbose = F)
+#   copy_to(dest = con,df = d,name = tb, temporary = F, overwrite = T, indexes = list('Country','Participant_Private_ID','Experiment_ID','PID','Session','Unique_Name','Run','Event_index'))
+#   i <- i + 1
+#   setTxtProgressBar(pb,i)
+# }
+# 
 # dbDisconnect(con)
 
 # is_indb <- dbListTables(con)
