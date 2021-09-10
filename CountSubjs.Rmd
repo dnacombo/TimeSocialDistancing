@@ -1,11 +1,11 @@
 ---
 title: "Subjects count"
 params:
-  Country: CO
+  Country: null
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/RData'
+  datadir: '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_notebook:
     code_folding: hide
@@ -24,12 +24,13 @@ source('helpers.R')
 ```
 
 ```{r}
-d <- gimmeRdata(DataDir = params$datadir, Country = params$Country, progress = T)
+d <- gimmedata(DataDir = params$datadir, progress = T)
 
 ```
 ```{r}
 toplot <- d %>% group_by(PID,Unique_Name,Run,Session) %>%
   filter(`Trial_Number`  =='END TASK' | `Question_Key` == 'END QUESTIONNAIRE') %>%
+  ungroup() %>%
   arrange(`UTC_Date`) 
 
 
@@ -80,43 +81,43 @@ toplot <- d %>%
 ```
 
 
-```{r}
-%>%
-  group_by(Session,Country, Day) %>%
-  summarize(N = n())
+<!-- ```{r} -->
+<!-- %>% -->
+<!--   group_by(Session,Country, Day) %>% -->
+<!--   summarize(N = n()) -->
 
-ggplot(toplot, aes(x=Day, y=N)) +
-  geom_bar(stat='identity')
+<!-- ggplot(toplot, aes(x=Day, y=N)) + -->
+<!--   geom_bar(stat='identity') -->
 
-```
+<!-- ``` -->
 
 ```{r}
 
 count <- tibble()
 if ('Trial_Number' %in% colnames(d)) {
   count <- filter(d,`Trial_Number` == 'END TASK') %>%
-    group_by(Country,Session,  Unique_Name) %>%
+    group_by(Country,Session, Run, Unique_Name) %>%
     summarize(N = n()) %>%
     bind_rows(count)
 }
 if ('Question_Key' %in% colnames(d)) {
   count <- filter(d,`Question_Key` == 'END QUESTIONNAIRE') %>%
-    group_by(Country,Session,  Unique_Name) %>%
+    group_by(Country,Session, Run, Unique_Name) %>%
     summarize(N = n()) %>%
     bind_rows(count)
 }
 
 ggplot(count,aes(x=Unique_Name,y=N,fill = Session)) +
-  facet_wrap(~ Country) +
+  facet_wrap(~ Country, scales = 'free_y') +
   geom_col(position = position_dodge(width = 1)) +
-  geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) +
+  # geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) +
   theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
   labs(x='',y='Count')
 ```
 
 ```{r}
-count %>%
-  pivot_wider(id_cols = c(Session,UniqueName), names_from = Country, values_from=N) 
+count <- count %>%
+  pivot_wider(id_cols = c(Country, Session, Run), values_from = N, names_from = Unique_Name)
 ```
 
 

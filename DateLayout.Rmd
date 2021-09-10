@@ -5,7 +5,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  datadir: '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document: 
     code_folding: hide
@@ -18,12 +18,9 @@ output:
 ```{r}
 source('helpers.R')
 library(DT)
-options(dplyr.summarise.inform=F)
-
 
 l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
 l$datadir <- params$datadir
-
 
 alldata <- gimmedata(datadir,ExperimentName = paste(l$ExperimentName,collapse = '|'), verbose = F, progress = F) %>%
   mutate(Country = recode(`Experiment ID`, !!!l$Country), .before = Session)

@@ -1,4 +1,4 @@
-datadir <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA/RData'
+datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
 
 source('helpers.R')
 

@@ -5,7 +5,7 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+  datadir: '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_notebook:
     code_folding: hide
@@ -151,6 +151,7 @@ for (f in fs) {
   cat(basename(f),sep = '\n')
   Session <- str_match(basename(f),'S(\\d)')[2]
   read_csv(f,col_types = cols(.default = col_character())) %>%
+    filter(`Participant Private ID` != 1954776) %>%
     mutate(PID = recode(`Participant Private ID`,!!!matchingPIDs)) %>%
     write_csv(f)
 }
