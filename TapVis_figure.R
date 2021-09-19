@@ -1,7 +1,12 @@
 # TapVis panel (synchronization + continuation)
 
+# pacman::p_load(tidyverse, ggdist, ggpubr, rcartocolor, ggtext, patchwork, here, 
+#                countrycode, janitor, Routliers, colorspace, pracma, mclust, lme4, patchwork)
+
+# source(here('Data_analysis/code/tapping_aux_functions.R'))
+
 # Country selection
-params <- list(c("AR", "JP","IT","CA","GR","DE","GB","TR","IN","CO"), "TapVis") # Saqué a FR
+params <- list(c("AR", "FR", "JP","IT","CA","GR","DE","GB","TR","IN","CO"), "TapVis")
 names(params) <- c("Country", "ExperimentName")
 
 print(params$Country)
@@ -89,6 +94,11 @@ for (c in Countries) {
   data_prepro_tbl <- rbind(data_prepro_tbl, data_prepro_country)
 }
 
+# Participantes que fallan en FR ---------------------------------------------------------------------------
+data_prepro_tbl <- data_prepro_tbl %>%
+  filter(pid != 1292928) %>%
+  filter(pid != 1381670)
+
 # Outliers glitches ---------------------------------------------------------------------------
 outliers_glitches <- data_prepro_tbl %>%
   filter(
@@ -116,12 +126,14 @@ summITI_trial <- data_prepro_tbl %>%
 outliersITI <- outliers_mad(x = summITI_trial$mITI, threshold = 6)
 
 summITI_trial <- summITI_trial %>%
-  filter(between(mITI, outliersITI$limits[1], outliersITI$limits[2]))
+  filter(between(mITI, outliersITI$limits[1], outliersITI$limits[2])) %>%
+  ungroup()
 
 # Summary by country, session and pid
 summITI <- summITI_trial %>%
   group_by(country, session, display, pid) %>%
-  summarise(mITI = median(mITI))
+  summarise(mITI = median(mITI)) %>%
+  ungroup()
 
 summary(summITI)
 
@@ -129,12 +141,14 @@ summary(summITI)
 ITI_n_country <- summITI %>%
   group_by(country, session, display) %>%
   summarise(N = n(),
-            medITI = median(mITI))
+            medITI = median(mITI)) %>%
+  ungroup()
 
 ITI_n_session <- summITI %>%
   group_by(session, display) %>%
   summarise(N = n(),
-            medITI = median(mITI))
+            medITI = median(mITI)) %>%
+  ungroup()
 
 ## Base figure ITI ---------------------------------------------------------------------
 display_filter <- "InSync_Cont"
@@ -349,7 +363,6 @@ display_filter <- "InSync_Cont" # "InSync" o "OutSync"
 
 p1_paper_cont <- summITI %>%
   filter((display == display_filter) & (session == "S1")) %>%
-  rbind(tibble(country = "FR", mITI = NA, display = "InSync", session = "S1", pid = NA)) %>%
   ggplot(aes(x = mITI/1000,
              y = reorder(country, desc(country)))) +
   stat_interval() +
@@ -385,6 +398,7 @@ p2_paper_cont <- summITI %>%
   ggplot(aes(x = mITI/1000)) +
   geom_histogram(aes(x = mITI/1000,
                      y = ..density..), 
+                 bins = 30,
                  fill = "#FDE0C5",
                  color = darken("#FDE0C5", 0.2)) +
   stat_pointinterval(aes(x = mITI/1000), 
@@ -428,7 +442,6 @@ display_filter <- "InSync" # "InSync" o "OutSync"
 
 p1_paper_asyn <- summAsyn %>%
   filter((display == display_filter) & (session == "S1")) %>%
-  rbind(tibble(country = "FR", m_asyn = NA, display = "InSync", session = "S1", pid = NA)) %>%
   ggplot(aes(x = m_asyn/1000,
              y = reorder(country, desc(country)))) +
   stat_interval() +
@@ -446,7 +459,7 @@ p1_paper_asyn <- summAsyn %>%
                                 max(summAsyn$m_asyn)/1000),
                      breaks = c(-0.25, 0, 0.25),
                      labels = c("-0.25", "0", "0.25")) +
-  labs(x ="Asyncrony (s)",
+  labs(x ="Asynchrony (s)",
        y = NULL) +
   theme(legend.position = "none",
         strip.background = element_blank(),
@@ -465,6 +478,7 @@ p2_paper_asyn  <- summAsyn %>%
   ggplot(aes(x = m_asyn/1000)) +
   geom_histogram(aes(x = m_asyn/1000,
                      y = ..density..), 
+                 bins = 30,
                  fill = "#FDE0C5",
                  color = darken("#FDE0C5", 0.2)) +
   stat_pointinterval(aes(x = m_asyn/1000), 
