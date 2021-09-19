@@ -84,26 +84,31 @@ summITI_free_trial <- summITI_free_trial %>%
 # Summary session and pid
 summITI_free <- summITI_free_trial %>%
   group_by(country, session, pid) %>%
-  summarise(mITI = median(mITI))
+  summarise(mITI = median(mITI)) %>%
+  ungroup()
 
 # n by country and session
 ITI_n_country_free <- summITI_free %>%
   group_by(country, session) %>%
   summarise(N = n(),
-            medITI = median(mITI))
+            medITI = median(mITI)) %>%
+  ungroup()
 
 ITI_n_session_free <- summITI_free %>%
   group_by(session) %>%
   summarise(N = n(),
-            medITI = median(mITI))
+            medITI = median(mITI)) %>%
+  ungroup()
 
 # Figure only session 1 ----
 
 # Plotting
 p1_paper_ISI <- summITI_free %>%
   filter(session == "S1") %>%
-  rbind(tibble(country = "AR", run = "InSync_Cont", pid = NA, 
-               mITI = NA, session = "S1", n_low = 0)) %>%
+  # rbind(tibble(country = "AR", run = "InSync_Cont", pid = NA, 
+  #              mITI = NA, session = "S1", n_low = 0)) %>%
+  rbind(tibble(country = "AR", pid = NA, 
+               mITI = NA, session = "S1")) %>%
   ggplot(aes(x = mITI/1000,
              y = reorder(country, desc(country)))) +
   stat_interval() +
@@ -136,6 +141,7 @@ p2_paper_ISI <- summITI_free %>%
   ggplot(aes(x = mITI/1000)) +
   geom_histogram(aes(x = mITI/1000,
                      y = ..density..),
+                 bins = 30,
                  fill = "#FDE0C5",
                  color = darken("#FDE0C5", 0.2)) +
   stat_pointinterval(aes(x = mITI/1000), 
@@ -159,7 +165,7 @@ p2_paper_ISI <- summITI_free %>%
   #                    breaks = 0) +
   scale_y_continuous(breaks = 0) +
   labs(x = NULL,
-       y = "Combined") +
+       y = "Pooled") +
   theme_pubclean() +
   theme(legend.position = "none",
         strip.background = element_rect(colour = "#B3D9CC",
