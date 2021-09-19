@@ -33,10 +33,8 @@ source(here('Data_analysis/paper/Tapping_figure.R'))
 source(here('Data_analysis/paper/TapVis_figure.R'))
 
 fig_paper_free_tapping | fig_paper_synchronization | fig_paper_continuation 
-  
+
 ggsave(here('Data_analysis/paper/output/fig_paper.png'), dpi = 300, width = 15, height = 15, units = "cm")
 ggsave(here('Data_analysis/paper/output/fig_paper.pdf'), width = 15, height = 15, units = "cm")
-
-
 ```
 
