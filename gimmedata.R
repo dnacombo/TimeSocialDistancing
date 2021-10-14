@@ -51,6 +51,8 @@ gimmedata <- function(DataDir = getwd(), ExperimentID = '[0-9]{5}', ExperimentNa
                             -ends_with('Timestamp'),
                             -starts_with('Participant'),
                             `Participant Private ID`,
+                            `Participant OS`,
+                            `Participant Browser`,
                             -`Tree Node Key`,
                             -starts_with('Spreadsheet'),
                             matches('Spreadsheet Name'))
