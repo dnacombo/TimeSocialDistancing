@@ -24,11 +24,67 @@ source('helpers.R')
 ```
 
 ```{r}
-d <- gimmedata(DataDir = params$datadir, progress = T)
-
+load("AllData.RData")
 ```
+
+# Participants who signed up to start
+
 ```{r}
-toplot <- d %>% group_by(PID,Unique_Name,Run,Session) %>%
+alldata %>%
+  group_by(PID) %>%
+  slice(1) %>%
+  ungroup() %>%
+  summarize(n = n())
+```
+# Participants who finished Session 1
+```{r}
+alldata %>%
+  group_by(PID, Unique_Name, Session) %>%
+  filter(Session == 'S1', Unique_Name == 'SemanticTime', Run == 2) %>%
+  slice(1) %>%
+  group_by() %>%
+  summarize(n = n())
+```
+
+# Participants who finished Session 2
+```{r}
+alldata %>%
+  group_by(PID, Unique_Name, Session) %>%
+  filter(Session == 'S2', Unique_Name == 'SemanticTime', Run == 2) %>%
+  slice(1) %>%
+  group_by() %>%
+  summarize(n = n())
+```
+# Participants who finished Session 3
+```{r}
+alldata %>%
+  group_by(PID, Unique_Name, Session) %>%
+  filter(Session == 'S3', Unique_Name == 'SelfPercept') %>%
+  slice(1) %>%
+  group_by() %>%
+  summarize(n = n())
+```
+# Participants who finished Session 4
+```{r}
+alldata %>%
+  group_by(PID, Unique_Name, Session) %>%
+  filter(Session == 'S4', Unique_Name == 'HADS') %>%
+  slice(1) %>%
+  group_by() %>%
+  summarize(n = n())
+```
+# Participants who finished Session Control
+```{r}
+alldata %>%
+  group_by(PID, Unique_Name, Session) %>%
+  filter(Session == 'SC', Unique_Name == 'END') %>%
+  slice(1) %>%
+  group_by() %>%
+  summarize(n = n())
+```
+
+```{r}
+toplot <- alldata %>% group_by(PID,Unique_Name,Run,Session) %>%
   filter(`Trial_Number`  =='END TASK' | `Question_Key` == 'END QUESTIONNAIRE') %>%
   ungroup() %>%
   arrange(`UTC_Date`) 
@@ -56,14 +112,14 @@ ggplot(toplot,aes(x=`UTC_Date`, y=PID, col=Unique_Name, shape = Session)) +
 ```
 ``
 ```{r}
-everyday = d %>%
+everyday = alldata %>%
   arrange(UTC_Date) %>%
   slice(1,n()) %>%
   transmute(Day = lubridate::date(UTC_Date))
-everyday = expand_grid(PID = unique(d$PID),Day=seq(everyday$Day[1], everyday$Day[2], by = 1))
+everyday = expand_grid(PID = unique(alldata$PID),Day=seq(everyday$Day[1], everyday$Day[2], by = 1))
 
 
-toplot <- d %>% 
+toplot <- alldata %>% 
   group_by(PID,Unique_Name,Run,Session) %>%
   filter(`Trial_Number`  =='END TASK' | `Question_Key` == 'END QUESTIONNAIRE') %>%
   arrange(`UTC_Date`) %>%
@@ -94,14 +150,14 @@ toplot <- d %>%
 ```{r}
 
 count <- tibble()
-if ('Trial_Number' %in% colnames(d)) {
-  count <- filter(d,`Trial_Number` == 'END TASK') %>%
+if ('Trial_Number' %in% colnames(alldata)) {
+  count <- filter(alldata,`Trial_Number` == 'END TASK') %>%
     group_by(Country,Session, Run, Unique_Name) %>%
     summarize(N = n()) %>%
     bind_rows(count)
 }
-if ('Question_Key' %in% colnames(d)) {
-  count <- filter(d,`Question_Key` == 'END QUESTIONNAIRE') %>%
+if ('Question_Key' %in% colnames(alldata)) {
+  count <- filter(alldata,`Question_Key` == 'END QUESTIONNAIRE') %>%
     group_by(Country,Session, Run, Unique_Name) %>%
     summarize(N = n()) %>%
     bind_rows(count)
