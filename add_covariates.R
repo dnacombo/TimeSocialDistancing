@@ -49,11 +49,18 @@ add_SubjectiveConfinementDuration <- function(d){
     stop('Must have Local_Date to add ConfinementIndices')
   }
   load(file=file.path('TSDshiny/data',"SubjectiveConfinementDuration.RData"))
-  d %>% left_join(SubjectiveConfinementDuration, by= "PID") %>%
-    pivot_longer(cols = starts_with("Local_Date_CT"),names_to = 'CT',values_to = )
-  mutate(across(starts_with("Local_Date_CT"), ~ lubridate::ddays(lubridate::as.duration(lubridate::interval(end=Local_Date, start = .x))), .names = 'diff_{.col}'),
-         min_diff_Local_Date = min(c(diff_Local_Date_CT1, diff_Local_Date_CT2, diff_Local_Date_CT3), na.rm = T )) %>%
-    select(everything(), Local_Date, ends_with('CT1'), ends_with('CT2'), ends_with('CT3'))
+  tmp <- d %>% left_join(SubjectiveConfinementDuration, by= c('Country', "PID", "Session")) %>%
+    mutate(is1 = Local_Date < Local_Date_CT2,
+           is2 = Local_Date >= Local_Date_CT2) %>%
+    mutate(ConfDuration_1 = as.numeric(ConfDuration_CT1),
+           Days_since_CT1 = as.numeric(lubridate::as.duration(lubridate::interval(start = Local_Date_CT1, end = Local_Date)),unit = 'days'),
+           ConfDuration_1 = ConfDuration_1 + slope1 * Days_since_CT1,
+           ConfDuration_2 = as.numeric(ConfDuration_CT2),
+           Days_since_CT2 = as.numeric(lubridate::as.duration(lubridate::interval(start = Local_Date_CT2, end = Local_Date)),unit = 'days'),
+           ConfDuration_2 = ConfDuration_2 + slope2 * Days_since_CT2,
+           ConfDuration = ifelse(is1, ConfDuration_1,
+                                 ifelse(is2,ConfDuration_2,NA)))
+  return(tmp)
 }
 
 
