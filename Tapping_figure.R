@@ -54,12 +54,12 @@ ITIs_free <- function(orig) {
 # Files loading and appending
 ITI_tbl = NULL
 for (c in Countries) {
-  filename <- list.files(path = here("Data_analysis/data"),
+  filename <- list.files(path = here("data"),
                          pattern = paste0("data-", params$ExperimentName, "_", c, "_*.*"))
   cat("---\n")
   cat(paste0(c,'\n'))
-  cat(paste0(here("Data_analysis/data", filename),'\n'))
-  load(here("Data_analysis/data", filename))
+  cat(paste0(here("data", filename),'\n'))
+  load(here("data", filename))
   ITIs_country <- ITIs_free(TSDdata) # ITI calculation
   ITI_tbl <- rbind(ITI_tbl, ITIs_country)
 }
@@ -105,8 +105,6 @@ ITI_n_session_free <- summITI_free %>%
 # Plotting
 p1_paper_ISI <- summITI_free %>%
   filter(session == "S1") %>%
-  # rbind(tibble(country = "AR", run = "InSync_Cont", pid = NA, 
-  #              mITI = NA, session = "S1", n_low = 0)) %>%
   rbind(tibble(country = "AR", pid = NA, 
                mITI = NA, session = "S1")) %>%
   ggplot(aes(x = mITI/1000,
@@ -141,7 +139,7 @@ p2_paper_ISI <- summITI_free %>%
   ggplot(aes(x = mITI/1000)) +
   geom_histogram(aes(x = mITI/1000,
                      y = ..density..),
-                 bins = 30,
+                 bins = 25,
                  fill = "#FDE0C5",
                  color = darken("#FDE0C5", 0.2)) +
   stat_pointinterval(aes(x = mITI/1000), 
@@ -152,7 +150,7 @@ p2_paper_ISI <- summITI_free %>%
              aes(x = medITI/1000,
                  y = -0.5,#-1,
                  label = as.character(paste0("n=", N, 
-                                             "\nmedian=", round(medITI/1000, digits = 2), " s"))),
+                         "\nmedian=", round(medITI/1000, digits = 2), " s"))),
              nudge_y = .4,
              size = 3,
              vjust = 1,
@@ -161,8 +159,6 @@ p2_paper_ISI <- summITI_free %>%
   facet_grid(. ~ session,
              labeller = labeller(session = session.labs)) +
   scale_x_continuous(limits = c(0, max(summITI_free$mITI)/1000)) +
-  # scale_y_continuous(limits = c(-3, 7),
-  #                    breaks = 0) +
   scale_y_continuous(breaks = 0) +
   labs(x = NULL,
        y = "Pooled") +
