@@ -2,6 +2,8 @@
 BLURSDAY DATABASE
 Analysis and code: Ignacio Spiousas and Rodrigo Laje
 
+(Might take a long time to run because of the size of the TapVis data)
+
 
 Directory structure:
 
@@ -28,13 +30,15 @@ knitr::opts_chunk$set(echo = TRUE,
 pacman::p_load(tidyverse, ggdist, ggpubr, rcartocolor, ggtext, patchwork, here, 
                countrycode, janitor, Routliers, colorspace, pracma, mclust, lme4, patchwork)
 
-source(here('Data_analysis/code/tapping_aux_functions.R'))
-source(here('Data_analysis/paper/Tapping_figure.R'))
-source(here('Data_analysis/paper/TapVis_figure.R'))
+source(here('code/tapping_aux_functions.R'))
+source(here('paper/Tapping_figure.R'))
+source(here('paper/TapVis_figure.R'))
 
-fig_paper_free_tapping | fig_paper_synchronization | fig_paper_continuation 
+fig_paper <- fig_paper_free_tapping | fig_paper_synchronization | fig_paper_continuation
+fig_paper
 
-ggsave(here('Data_analysis/paper/output/fig_paper.png'), dpi = 300, width = 15, height = 15, units = "cm")
-ggsave(here('Data_analysis/paper/output/fig_paper.pdf'), width = 15, height = 15, units = "cm")
+ggsave(here('paper/fig_paper.png'), dpi = 300, width = 15, height = 15, units = "cm")
+ggsave(here('paper/fig_paper.pdf'), width = 15, height = 15, units = "cm")
+
 ```
 
