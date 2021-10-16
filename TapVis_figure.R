@@ -1,10 +1,5 @@
 # TapVis panel (synchronization + continuation)
 
-# pacman::p_load(tidyverse, ggdist, ggpubr, rcartocolor, ggtext, patchwork, here, 
-#                countrycode, janitor, Routliers, colorspace, pracma, mclust, lme4, patchwork)
-
-# source(here('Data_analysis/code/tapping_aux_functions.R'))
-
 # Country selection
 params <- list(c("AR", "FR", "JP","IT","CA","GR","DE","GB","TR","IN","CO"), "TapVis")
 names(params) <- c("Country", "ExperimentName")
@@ -15,7 +10,6 @@ Countries
 
 # data preprocessing
 prepro <- function(orig) {
-
   data_prepro <- orig %>%
     mutate(
       Reaction_Time = as.numeric(Reaction_Time),
@@ -84,87 +78,56 @@ prepro <- function(orig) {
 # Files loading and appending ----------------------------------------------------------------------------------------
 data_prepro_tbl = NULL
 for (c in Countries) {
-  filename <- list.files(path = here("Data_analysis/data"),
+  filename <- list.files(path = here("data"),
                          pattern = paste0("data-", params$ExperimentName, "_", c, "_*.*"))
   cat("---\n")
   cat(paste0(c,'\n'))
-  cat(paste0(here("Data_analysis/data", filename),'\n'))
-  load(here("Data_analysis/data", filename))
+  cat(paste0(here("data", filename),'\n'))
+  load(here("data", filename))
   data_prepro_country <- prepro(TSDdata) # ITI calculation
   data_prepro_tbl <- rbind(data_prepro_tbl, data_prepro_country)
 }
 
-# Participantes que fallan en FR ---------------------------------------------------------------------------
+# Participantes que fallan en FR -----------------------------------------------
 data_prepro_tbl <- data_prepro_tbl %>%
   filter(pid != 1292928) %>%
   filter(pid != 1381670)
 
-# Outliers glitches ---------------------------------------------------------------------------
-outliers_glitches <- data_prepro_tbl %>%
+# Outliers glitches ------------------------------------------------------------
+outliers_glitches_synch <- data_prepro_tbl %>%
   filter(
     # remove very long trials (glitch? twice the expected number of stimuli)
     (disp_type=="synch" & n_stims > 100) |
     # remove trials with very long key presses -> too many responses)s
-    (disp_type=="synch" & n_taps > 100) |
+    (disp_type=="synch" & n_taps > 100))
+
+outliers_glitches_cont <- data_prepro_tbl %>%
+  filter(
+    # remove trials with very long key presses -> too many responses)s
     (disp_type=="cont" & n_taps > 300))
 
-data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_glitches, by=names(data_prepro_tbl))
 
-# ITI ----------------------------------------------------------------------------------------
-# Summary by country, session and pid
-summITI_trial <- data_prepro_tbl %>%
-  filter( disp_type=="cont") %>%
-  filter(between(ITI, 1, 5000)) %>%
-  group_by(country, session, display, pid, randomise_blocks) %>%
-  summarise(mITI = median(ITI),
-            n_low = sum(ITI<50)) %>%
-  filter(n_low < 30) %>%
-  ungroup()
+# Remove outlier synchronization trials (and continuation trials corresponding to removed synch trials)
+data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_glitches_synch, by=c("country","session","pid","run","randomise_blocks"))
+# Remove outlier continuation trials
+data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_glitches_cont, by=names(data_prepro_tbl))
+# data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_glitches, by=names(data_prepro_tbl))
 
-# Outlier detection
-# Hacer por country session y display
-outliersITI <- outliers_mad(x = summITI_trial$mITI, threshold = 6)
 
-summITI_trial <- summITI_trial %>%
-  filter(between(mITI, outliersITI$limits[1], outliersITI$limits[2])) %>%
-  ungroup()
-
-# Summary by country, session and pid
-summITI <- summITI_trial %>%
-  group_by(country, session, display, pid) %>%
-  summarise(mITI = median(mITI)) %>%
-  ungroup()
-
-summary(summITI)
-
-# n by country and session
-ITI_n_country <- summITI %>%
-  group_by(country, session, display) %>%
-  summarise(N = n(),
-            medITI = median(mITI)) %>%
-  ungroup()
-
-ITI_n_session <- summITI %>%
-  group_by(session, display) %>%
-  summarise(N = n(),
-            medITI = median(mITI)) %>%
-  ungroup()
-
-## Base figure ITI ---------------------------------------------------------------------
-display_filter <- "InSync_Cont"
-
-# Asyn ----------------------------------------------------------------------------------------
-## Outliers transient -------------------------------------------------------------------------
+## Asyn ------------------------------------------------------------------------
+## Outliers transient ----------------------------------------------------------
+transient_length <- 5
 outliers_transient <- data_prepro_tbl %>%
   # remove first taps in synchronization
-  filter(disp_type=="synch" & tap_nbr <= 5)
+  filter(disp_type=="synch" & tap_nbr <= transient_length)
 
 data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_transient, by=names(data_prepro_tbl))
+
 
 ## Phasediff -------------------------------------------------------------------
 phasediff_tbl <- data_prepro_tbl %>%
   filter(disp_type=="synch") %>%
-  group_by(country, pid, session, run, randomise_order, display) %>%
+  group_by(country, pid, session, run, randomise_blocks, randomise_order, display) %>%
   nest() %>%
   mutate(stims = purrr::map(data, ~.x$Stim[.x$zone_type=="gonogo"]),
          responses = purrr::map(data, ~.x$Tap[.x$zone_type!="gonogo"]),
@@ -175,7 +138,7 @@ phasediff_tbl <- data_prepro_tbl %>%
   ungroup()
 
 phase_measures_tbl <- phasediff_tbl %>%
-  group_by(country, session, pid, run, randomise_order, display) %>%
+  group_by(country, session, pid, run, randomise_blocks, randomise_order, display) %>%
   summarize(
     # Phase-Locking Value (Lachau et al 1999, adapted to paced finger tapping)
     plv=abs(sum(phasor,na.rm=TRUE))/n(),
@@ -188,7 +151,7 @@ phase_measures_tbl <- phasediff_tbl %>%
   ungroup()
 
 circmean_stats <- phase_measures_tbl %>%
-  group_by(country, session, run, display) %>%
+  group_by(country, session, run, randomise_blocks, display) %>%
   summarize(out_limit = boxplot.stats(as.numeric(circ_mean))$stats[c(1,5)]) %>%
   ungroup()
 
@@ -199,13 +162,13 @@ asynchronies_tbl <- data_prepro_tbl %>%
            pid,
            session,
            run,
+           randomise_blocks,
            randomise_order,
            display) %>%
   nest() %>%
   mutate(stims = purrr::map(data,
                      ~.x$Stim[.x$zone_type=="gonogo"]),
          responses = purrr::map(data,
-                         # ~.x$Tap[.x$zone_type!="gonogo"]),
                          ~.x$Tap[.x$zone_type=="response_keyboard_single"]),
          asyns.df = purrr::map2(stims,
                          responses,
@@ -217,7 +180,7 @@ asynchronies_tbl <- data_prepro_tbl %>%
   ungroup()
 
 asyn_measures_tbl <- asynchronies_tbl %>%
-  group_by(country,session,pid,run,randomise_order,display) %>%
+  group_by(country,session,pid,run,randomise_blocks,randomise_order,display) %>%
   summarize(
     # trial mean asynchrony
     asyn_mean=mean(asyn,na.rm=TRUE),
@@ -235,13 +198,20 @@ asyn_measures_tbl <- asynchronies_tbl %>%
   ungroup()
 
 clustering_tbl <- asyn_measures_tbl %>%
-  select(country,session,pid,run,display,
+  select(country,session,pid,run,display, randomise_blocks,
          asyn_mean,asyn_sd,asyn_median,asyn_mad,nbr_large_asyns) %>%
   group_by(country,session,display) %>%
   drop_na() %>%
   mutate(mclust_fn(tibble(asyn_median,asyn_mad,nbr_large_asyns),
                    ncnters=1:9,select=3,above=TRUE,threshold=15)) %>%
   ungroup()
+
+
+## Remove outliers of synchronization ------------------------------------------
+# In the following chunks, outliers are removed with anti_join. Importantly,
+# the "by" argument removes both the detected synchronization trial (InSync or
+# OutSync) and the corresponding continuation trial (InSync_Cont or
+# OutSync_Cont) that are grouped by the randomise_blocks variable
 
 
 ## Outliers slope --------------------------------------------------------------
@@ -251,7 +221,7 @@ slope_thr <- pi/60000
 outliers_slope <- phase_measures_tbl %>%
   filter(abs(phase_slope)>slope_thr)
 
-data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_slope)
+data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_slope, by=c("country","session","pid","run","randomise_blocks"))
 
 ## Outliers circmean -----------------------------------------------------------
 # subjects confusing instructions: mean phase outliers (e.g. OutSync when InSync)
@@ -260,7 +230,7 @@ outliers_circmean <- phase_measures_tbl %>%
   filter(!do.call(between,c(list(as.numeric(circ_mean)),boxplot.stats(as.numeric(circ_mean))$stats[c(1,5)]))) %>%
   ungroup()
 
-data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_circmean)
+data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_circmean, by=c("country","session","pid","run","randomise_blocks"))
 
 ## Outliers plv ----------------------------------------------------------------
 # exceedingly variable trials (low-outliers of the PLV distribution)
@@ -269,7 +239,7 @@ outliers_plv <- phase_measures_tbl %>%
   filter(plv < boxplot.stats(plv)$stats[1]) %>%
   ungroup()
 
-data_prepro_tbl <- anti_join(data_prepro_tbl,outliers_plv)
+data_prepro_tbl <- anti_join(data_prepro_tbl,outliers_plv, by=c("country","session","pid","run","randomise_blocks"))
 
 ## Outliers circsd -------------------------------------------------------------
 # exceedingly variable trials (hi-outliers of the Circ_SD distribution)
@@ -278,7 +248,7 @@ outliers_circsd <- phase_measures_tbl %>%
   filter(circ_sd > boxplot.stats(circ_sd)$stats[5]) %>%
   ungroup()
 
-data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_circsd)
+data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_circsd, by=c("country","session","pid","run","randomise_blocks"))
 
 ## Outliers clustering ---------------------------------------------------------
 # subjects reacting instead of synchronizing:
@@ -287,14 +257,15 @@ outliers_cluster <- clustering_tbl %>%
   filter(cluster %in% clust_out[[1]]) %>%
   ungroup()
 
-data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_cluster)
+data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_cluster, by=c("country","session","pid","run","randomise_blocks"))
 
 ## Outliers nasyn --------------------------------------------------------------
 # trials with too few surviving responses (half the number of stimuli or less)
 outliers_nasyn <- asyn_measures_tbl %>%
   filter(nasyn<30)
 
-data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_nasyn)
+data_prepro_tbl <- anti_join(data_prepro_tbl, outliers_nasyn, by=c("country","session","pid","run","randomise_blocks"))
+
 
 ## Figure distribution ---------------------------------------------------------
 asynchronies_tbl <- data_prepro_tbl %>%
@@ -311,24 +282,7 @@ asynchronies_tbl <- data_prepro_tbl %>%
   ungroup() %>%
   drop_na()
 
-asynchronies_tbl %>%
-  ggplot(aes(x = asyn,
-             fill = display,
-             color = display)) +
-  geom_histogram(aes(y = ..density..),
-                 bins = 100,
-                 fill = "gray50",
-                 color = "gray50") +
-  geom_density(alpha = 0.3) +
-  scale_color_manual(values = c("#1380A1", "#990000")) +
-  scale_fill_manual(values = c("#1380A1", "#990000")) +
-  facet_grid(~country~display) +
-  theme(strip.background = element_rect(colour = "white", fill = "white"),
-        legend.position = "top",
-        legend.text = element_text()) +
-  labs(title = 'Distribution of asynchronies' ,
-       x = "Asynchrony (ms)",
-       y = NULL)
+
 
 ## Base figure Asyn .-----------------------------------------------------------
 # Summary by subject
@@ -353,10 +307,48 @@ asyn_n_session <- summAsyn %>%
   summarise(N = n(),
             med_asyn = median(m_asyn))
 
-display_filter <- "InSync" # "InSync" o "OutSync"
 
 
-# Figure only session 1 ---s-----------------------------------------------------
+# ITI - Free tapping -----------------------------------------------------------
+# Summary by country, session and pid
+summITI_trial <- data_prepro_tbl %>%
+  filter( disp_type=="cont") %>%
+  filter(between(ITI, 1, 5000)) %>%
+  group_by(country, session, display, pid, randomise_blocks) %>%
+  summarise(mITI = median(ITI),
+            n_low = sum(ITI<50)) %>%
+  filter(n_low < 30) %>%
+  ungroup()
+
+# Outlier detection
+# Hacer por country session y display
+outliersITI <- outliers_mad(x = summITI_trial$mITI, threshold = 6)
+
+summITI_trial <- summITI_trial %>%
+  filter(between(mITI, outliersITI$limits[1], outliersITI$limits[2])) %>%
+  ungroup()
+
+# Summary by country, session and pid
+summITI <- summITI_trial %>%
+  group_by(country, session, display, pid) %>%
+  summarise(mITI = median(mITI)) %>%
+  ungroup()
+
+# n by country and session
+ITI_n_country <- summITI %>%
+  group_by(country, session, display) %>%
+  summarise(N = n(),
+            medITI = median(mITI)) %>%
+  ungroup()
+
+ITI_n_session <- summITI %>%
+  group_by(session, display) %>%
+  summarise(N = n(),
+            medITI = median(mITI)) %>%
+  ungroup()
+
+
+## Figure only session 1 -------------------------------------------------------
 ## ITI ----
 
 display_filter <- "InSync_Cont" # "InSync" o "OutSync"
@@ -398,7 +390,7 @@ p2_paper_cont <- summITI %>%
   ggplot(aes(x = mITI/1000)) +
   geom_histogram(aes(x = mITI/1000,
                      y = ..density..), 
-                 bins = 30,
+                 bins = 25,
                  fill = "#FDE0C5",
                  color = darken("#FDE0C5", 0.2)) +
   stat_pointinterval(aes(x = mITI/1000), 
@@ -436,7 +428,8 @@ p2_paper_cont <- summITI %>%
 
 fig_paper_continuation <- p2_paper_cont / p1_paper_cont + plot_layout(heights = c(1, 2))
 
-# Asyn ----
+
+# Asyn -------------------------------------------------------------------------
 
 display_filter <- "InSync" # "InSync" o "OutSync"
 
@@ -478,7 +471,7 @@ p2_paper_asyn  <- summAsyn %>%
   ggplot(aes(x = m_asyn/1000)) +
   geom_histogram(aes(x = m_asyn/1000,
                      y = ..density..), 
-                 bins = 30,
+                 bins = 25,
                  fill = "#FDE0C5",
                  color = darken("#FDE0C5", 0.2)) +
   stat_pointinterval(aes(x = m_asyn/1000), 
