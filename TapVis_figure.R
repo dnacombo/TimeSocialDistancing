@@ -368,9 +368,11 @@ p1_paper_cont <- summITI %>%
   facet_grid(. ~ session) +
   scale_color_carto_d(palette = "Mint") +
   theme_pubclean() +
-  scale_x_continuous(limits = c(min(summITI$mITI)/1000, 
-                                max(summITI$mITI)/1000),
-                      breaks = c(0.5, 1, 1.5)) +
+  # scale_x_continuous(limits = c(min(summITI$mITI)/1000, 
+  #                               max(summITI$mITI)/1000),
+  #                     breaks = c(0.5, 1, 1.5)) +
+  scale_x_continuous(limits = c(0.5,1.5),
+                     breaks = c(0.75, 1, 1.25)) +
   labs(x = "ITI (s)",
        y = NULL) +
   theme(legend.position = "none",
@@ -408,9 +410,11 @@ p2_paper_cont <- summITI %>%
              color = "#EB4940") +
   facet_grid(. ~ session,
              labeller = labeller(session = session.labs)) +
-  scale_x_continuous(limits = c(min(summITI$mITI)/1000,
-                                max(summITI$mITI)/1000),
-                      breaks = c(0.5, 1, 1.5)) +
+  # scale_x_continuous(limits = c(min(summITI$mITI)/1000,
+  #                               max(summITI$mITI)/1000),
+  scale_x_continuous(limits = c(0.5,1.5),
+                     breaks = c(0.75, 1, 1.25),
+                      labels = c("0.75", "1", "1.25")) +
   scale_y_continuous(limits = c(-3, 7),
                      breaks = 0) +
   labs(x = NULL,
