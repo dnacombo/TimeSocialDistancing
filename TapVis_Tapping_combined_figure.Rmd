@@ -39,6 +39,7 @@ fig_paper
 
 ggsave(here('paper/fig_paper.png'), dpi = 300, width = 15, height = 15, units = "cm")
 ggsave(here('paper/fig_paper.pdf'), width = 15, height = 15, units = "cm")
+ggsave(here('paper/fig_paper.eps'), width = 15, height = 15, units = "cm")
 
 ```
 
