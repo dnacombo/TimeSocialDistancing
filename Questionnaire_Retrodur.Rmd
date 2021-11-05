@@ -11,6 +11,8 @@ output:
     df_print: paged
     code_folding: hide
     toc: yes
+editor_options: 
+  chunk_output_type: inline
 ---
 
 ```{r, message=F}
@@ -25,6 +27,8 @@ theme_set(theme_minimal())
 
 datadir = params$datadir
 source('helpers.R')
+
+
 ```
 
 # Reading data
@@ -33,45 +37,46 @@ We read data from the `RetroDuration` questionnaire. Translate responses using Q
 
 Compute :
 
--   EM = Estimated Magnitude = initial_RetrospectiveDuration in seconds
+-   EstimatedDuration = Estimated Magnitude = initial_RetrospectiveDuration in seconds
 -   ClockDuration = Clock time since last recorded login in seconds
--   rEM = EM / ClockDuration
--   EE = Estmiation Error = EM - ClockDuration
--   rEE = EE / ClockDuration
+-   rEstimatedDuration = EstimatedDuration / ClockDuration
+-   EstimationError = Estmiation Error = EstimatedDuration - ClockDuration
+-   rEstimationError = EstimationError / ClockDuration
 
 ```{r, message=F}
 # load(file.path(params$datadir,'Demographics.RData'))
 load(file.path(params$datadir,'Daily_Login_Times.RData'))
 
 # Extracting data:
+
 # RetroDuration <- gimmeRdata(params$datadir, UniqueName = 'RetroDuration') %>%
+#   filter(!Country %in% c('UK','CO', 'US')) %>%
 #   QTranslate() %>%
-#   filter(Question_Key %in% c('initial_RetrospectiveDuration', 'Passage_of_Time')) %>%
+#   filter(Question_Key %in% c('initial_RetrospectiveDuration')) %>%
 #   mutate(Date = lubridate::date(Local_Date)) %>%
 #   pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
 #   # take only the first response if there are several ones
 #   group_by(PID,Session,Run,Country) %>%
 #   slice(1) %>%
-#   add_demographics() %>%
-#   # For EM
+#   add_Demographics() %>%
+#   # For EstimatedDuration
 #   # Using 3 AM to change day
-#   mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3)),
-#          Passage_of_Time = as.numeric(Passage_of_Time)) %>%
+#   mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3))) %>%
 #   left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
 #   mutate(Date = lubridate::as_date(Local_Date)) %>%
 #   mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
-#   select(Country, PID, Session, Run, Local_Date, ClockDuration, initial_RetrospectiveDuration, Passage_of_Time,
+#   select(Country, PID, Session, Run, Local_Date, ClockDuration, initial_RetrospectiveDuration,
 #          Handedness, Sex, Age, Date) %>%
 #   mutate(M = str_match(initial_RetrospectiveDuration,
 #                        '^.*?(\\d+).*?[:：].*?(\\d+).*?[:：].*?(\\d+).*?$'),
 #          h = suppressWarnings(as.numeric(M[,2])),
 #          m = suppressWarnings(as.numeric(M[,3])),
 #          s = suppressWarnings(as.numeric(M[,4])),
-#          EM = lubridate::duration(hour = h, minute = m, second = s),
+#          EstimatedDuration = lubridate::duration(hour = h, minute = m, second = s),
 #          ClockDuration = lubridate::as.duration(ClockDuration),
-#          rEM = EM / ClockDuration,
-#          EE = EM - ClockDuration,
-#          rEE = EE / ClockDuration) %>%
+#          rEstimatedDuration = EstimatedDuration / ClockDuration,
+#          EstimationError = EstimatedDuration - ClockDuration,
+#          rEstimationError = EstimationError / ClockDuration) %>%
 #   select(-M) %>% # ,-h,-m,-s
 #   ungroup()
 # 
@@ -82,30 +87,30 @@ load(file = file.path(params$datadir,'RetroDuration.RData'))
 
 ```{r}
 RetroDuration %>% 
-  mutate(across(c(ClockDuration,EM, EE),as.numeric)) %>%
+  mutate(across(c(ClockDuration,EstimatedDuration, EstimationError),as.numeric)) %>%
   skimr::skim()
 ```
 
-## Outliers detection and clean up
+# Outliers detection and clean up
 
 ```{r}
 RetroDuration %>%
-  mutate(across(c(ClockDuration, EM, Passage_of_Time, rEM, rEE), as.numeric)) %>%
-  pivot_longer(cols = c(ClockDuration, EM, Passage_of_Time, rEM, rEE)) %>%
+  mutate(across(c(ClockDuration, EstimatedDuration, rEstimatedDuration, rEstimationError), as.numeric)) %>%
+  pivot_longer(cols = c(ClockDuration, EstimatedDuration, rEstimatedDuration, rEstimationError)) %>%
 ggplot(aes(x = value, fill = Country)) + 
   geom_histogram(bins = 50) +
   facet_wrap(~name ,scales = 'free') +
   ggtitle('Measure distributions')
 ```
 
-Distributions of `ClockDuration`, `EM`, `rEE`, and `rEM` are highly skewed to the left. First capping EM and ClockDuration to a decent duration, then removing 5% most extreme `rEE`.
+Distributions of `ClockDuration`, `EstimatedDuration`, `rEstimationError`, and `rEstimatedDuration` are highly skewed to the left. First capping EstimatedDuration and ClockDuration to a decent duration, then removing 5% most extreme `rEstimationError`.
 
 Rationale:
 
 -   `ClockDuration` cannot be below 60 s: no questionnaire/task can be completed under this duration, and we want at least one.
 -   `ClockDuration` cannot be above 18000 s = 5 h: subjects cannot be focused for 5h in a row.
--   Same rationale for `EM`, but 5 fold more permissive (we allow EM up to 5 \* 18000s, and below 60 / 5 s).
--   5% Largest/smallest `rEE` is systematically discarded. This is done for each Session and Country separately.
+-   Same rationale for `EstimatedDuration`, but 5 fold more permissive (we allow EstimatedDuration up to 5 \* 18000s, and below 60 / 5 s).
+-   5% Largest/smallest `rEstimationError` is systematically discarded. This is done for each Session and Country separately.
 
 We count these
 
@@ -113,18 +118,18 @@ We count these
 # capped_outliers:
 Duration_max <- 18000
 Duration_min <- 60
-Ratio_rejection_ClockDuration_to_EM <- 5
+Ratio_rejection_ClockDuration_to_EstimatedDuration <- 5
 # trim_outliers:
 probs <- c(.025, .975)
 
 OutlierStats <- RetroDuration %>%
   group_by(Country,Session) %>%
-  filter(!is.na(rEM), rEM != 0) %>%
-  mutate(capped_outliers = ClockDuration > Duration_max | ClockDuration < Duration_min | EM > Duration_max * Ratio_rejection_ClockDuration_to_EM | EM < Duration_min / Ratio_rejection_ClockDuration_to_EM,
+  filter(!is.na(rEstimatedDuration), rEstimatedDuration != 0) %>%
+  mutate(capped_outliers = ClockDuration > Duration_max | ClockDuration < Duration_min | EstimatedDuration > Duration_max * Ratio_rejection_ClockDuration_to_EstimatedDuration | EstimatedDuration < Duration_min / Ratio_rejection_ClockDuration_to_EstimatedDuration,
          ncapped_outliers = sum(capped_outliers, na.rm = T),
          prop_capped_outliers = ncapped_outliers/n()) %>%
   filter(!capped_outliers) %>%
-  mutate(trim_outliers = find.outliers(rEE,meth = 'trim', probs = probs),
+  mutate(trim_outliers = find.outliers(rEstimationError,meth = 'trim', probs = probs),
          ntrim_outliers = sum(trim_outliers, na.rm = T)) %>%
   summarize(prop_trim_outliers = unique(ntrim_outliers)/n(),
             prop_capped_outliers = unique(prop_capped_outliers),
@@ -135,10 +140,11 @@ OutlierStats <- RetroDuration %>%
 
 ```{r}
 OutlierStats %>% group_by() %>%
-  summarize(across(starts_with('n'),list(min = min, 
-                                            max = max,
-                                            mean = mean,
-                                            sd = sd))) %>%
+  summarize(across(starts_with('n'),list(sum = sum,
+                                         min = min, 
+                                         max = max,
+                                         mean = mean,
+                                         sd = sd))) %>%
   pivot_longer(starts_with('n')) %>%
   flextable() %>%
   colformat_double(big.mark = " ", digits = 3) 
@@ -175,35 +181,48 @@ OutlierStats %>%
 
 ```{r}
 RetroDuration_clean <- RetroDuration %>%
-  filter(!is.na(rEM), rEM != 0) %>%
+  filter(!is.na(rEstimatedDuration), rEstimatedDuration != 0)
+nrowsbefore_outliers <- nrow(RetroDuration_clean)
+RetroDuration_clean <- RetroDuration_clean %>%
   group_by(Country,Session) %>%
-  mutate(outliers = ClockDuration > Duration_max | ClockDuration < Duration_min | EM > Duration_max * Ratio_rejection_ClockDuration_to_EM | EM < Duration_min / Ratio_rejection_ClockDuration_to_EM) %>%
+  mutate(outliers = ClockDuration > Duration_max | ClockDuration < Duration_min | EstimatedDuration > Duration_max * Ratio_rejection_ClockDuration_to_EstimatedDuration | EstimatedDuration < Duration_min / Ratio_rejection_ClockDuration_to_EstimatedDuration) %>%
   filter(!outliers) %>%
-  mutate(outliers = find.outliers(rEE,meth = 'trim', probs = probs)) %>%
+  mutate(outliers = find.outliers(rEstimationError,meth = 'trim', probs = probs)) %>%
   filter(!outliers) %>%
   ungroup() %>% select(-outliers)
+nrowsafter_outliers <- nrow(RetroDuration_clean)
+
+cat('Global proportion of outliers', prop_outliers_global <- 1 - nrowsafter_outliers / nrowsbefore_outliers)
+
+save(RetroDuration_clean, file = file.path(params$datadir,'RetroDuration_clean.RData'))
 
 RetroDuration_clean %>%
   group_by(Country,Session) %>%
-  mutate(across(c(ClockDuration, EM, Passage_of_Time, rEM, rEE), as.numeric)) %>%
-  pivot_longer(cols = c(ClockDuration, EM, Passage_of_Time, rEM, rEE)) %>%
+  mutate(across(c(ClockDuration, EstimatedDuration, rEstimatedDuration, rEstimationError), as.numeric)) %>%
+  pivot_longer(cols = c(ClockDuration, EstimatedDuration, rEstimatedDuration, rEstimationError)) %>%
 ggplot(aes(x = value, fill = Country)) + 
   geom_histogram(bins = 50) +
   facet_wrap(~name ,scales = 'free')
 ```
 ```{r}
+lseq <- function(from,to, length.out) {
+  exp(seq(log(from), log(to), length.out = length.out))
+}
 RetroDuration_clean %>%
-  ggplot(aes(x = rEM, col = Session, fill = Session)) +
-  geom_histogram(aes(y = after_stat(ncount)), col = NA, position = 'dodge', bins = 50, alpha = .3) +
+  ggplot(aes(x = rEstimatedDuration, col = Session, fill = Session)) +
+  geom_histogram(aes(y = after_stat(ncount)), col = NA, position = 'dodge', breaks = lseq(.1,10,10), alpha = .3) +
   stat_ecdf() +
   facet_wrap(~Country) +
-  scale_x_log10()
+  scale_x_log10() +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
 ```
 
 Dashed = original data, continuous = outliers removed. Thin black vertical lines = hard limits (`Duration_min` and `Duration_max`).
 We notice here that SC shows a strong outlier suppression on the right side. This is due to highly rounded responses with few subjects.
 
 ```{r}
+
 ggplot(RetroDuration_clean,aes(x=ClockDuration,col=Session)) +
   stat_ecdf() +
   # facet_grid(Country~Session) +
@@ -213,20 +232,24 @@ ggplot(RetroDuration_clean,aes(x=ClockDuration,col=Session)) +
   theme_minimal() +
   ylab('Empirical cumulated density') +
   scale_x_log10() +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
   ggtitle('Distributions of ClockDuration before/after outlier rejection')
 
-ggplot(RetroDuration_clean,aes(x=EM,col=Session)) +
+ggplot(RetroDuration_clean,aes(x=EstimatedDuration,col=Session)) +
   stat_ecdf() +
   # facet_grid(Country~Session) +
   facet_wrap(~Session) +
   stat_ecdf(data = RetroDuration, linetype = 2) +
-  geom_vline(xintercept = c(Duration_min,Duration_max) * Ratio_rejection_ClockDuration_to_EM, size = .1) +
+  geom_vline(xintercept = c(Duration_min,Duration_max) * Ratio_rejection_ClockDuration_to_EstimatedDuration, size = .1) +
   theme_minimal() +
   ylab('Empirical cumulated density') +
   scale_x_log10() +
-  ggtitle('Distributions of EM before/after outlier rejection')
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
+  ggtitle('Distributions of EstimatedDuration before/after outlier rejection')
 
-ggplot(RetroDuration_clean,aes(x=rEE,col=Session)) +
+ggplot(RetroDuration_clean,aes(x=rEstimationError,col=Session)) +
   stat_ecdf() +
   # facet_grid(Country~Session) +
   facet_wrap(~Session) +
@@ -234,17 +257,19 @@ ggplot(RetroDuration_clean,aes(x=rEE,col=Session)) +
   theme_minimal() +
   ylab('Empirical cumulated density') +
   scale_x_log10() +
-  ggtitle('Distributions of rEE before/after outlier rejection')
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
+  ggtitle('Distributions of rEstimationError before/after outlier rejection')
 
 
-# ggplot(RetroDuration, aes(y = rEE, x = Session, col = Country)) +
+# ggplot(RetroDuration, aes(y = rEstimationError, x = Session, col = Country)) +
 #   geom_boxplot() +
 #   coord_cartesian(ylim = c(-20, 20)) +
-#   ggtitle('rEE before outlier rejection')
-# ggplot(RetroDuration_clean, aes(y = rEE, x = Session, col = Country)) +
+#   ggtitle('rEstimationError before outlier rejection')
+# ggplot(RetroDuration_clean, aes(y = rEstimationError, x = Session, col = Country)) +
 #   geom_boxplot() +
 #   coord_cartesian(ylim = c(-20, 20)) +
-#   ggtitle('rEE after outlier rejection')
+#   ggtitle('rEstimationError after outlier rejection')
 
 ```
 ## Subjects Count after outlier rejection
@@ -261,23 +286,23 @@ RetroDuration_clean %>% group_by(Country, Session) %>%
 skimr::skim(RetroDuration_clean)
 ```
 
-# ratio rEM = Estimation (EM) / Clock Duration
+# ratio rEstimatedDuration = EstimatedDuration / ClockDuration
 
 ## Focus on S1 vs. SC comparison
 
 ```{r}
 tostat <- RetroDuration_clean %>% 
   group_by(Country, PID, Session) %>%
-  select(Country,PID, Session, Local_Date,EM, rEM, EE, Age, Sex, Handedness, ClockDuration) %>%
+  select(Country,PID, Session, Local_Date,EstimatedDuration, rEstimatedDuration, EstimationError, Age, Sex, Handedness, ClockDuration) %>%
   filter(Session %in% c('S1','SC')) %>%
   summarize(Local_Date = unique(Local_Date),
-            EE = mean(EE) / 60,
+            EstimationError = mean(EstimationError) / 60,
             ClockDuration = mean(ClockDuration) / 60,
-            EM = mean(EM) / 60,
-            rEM = mean(rEM),
-            rEE = mean(EE/ClockDuration),
+            EstimatedDuration = mean(EstimatedDuration) / 60,
+            rEstimatedDuration = mean(rEstimatedDuration),
+            rEstimationError = mean(EstimationError/ClockDuration),
             Age = unique(Age)) %>%
-  mutate(logrEM = log10(rEM)) %>%
+  mutate(logrEstimatedDuration = log10(rEstimatedDuration)) %>%
   add_SubjectiveConfinementIndices() %>%
   add_StringencyIndex() %>%
   add_TimeOfDay()
@@ -291,7 +316,7 @@ N <- tostat %>%
 skimr::skim(ungroup(tostat))
 ```
 
-#### Clock duration distributions
+#### Examining distributions
 
 Two largely overlapping distributions, same central tendency, heavier tails for SC.
 
@@ -302,96 +327,106 @@ ggplot(tostat,aes(y = ClockDuration, x = Session, col=Session)) +
   geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3, y = 2, data = N, show.legend = F) +
   theme_minimal() +
   scale_y_log10() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   ylab('ClockDuration (min)')
 
 ggplot(tostat,aes(x=ClockDuration,col = Session)) +
   stat_ecdf() +
   theme_minimal() + 
   scale_x_log10() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   xlab('ClockDuration (min)') +
   ylab('Proportion')
 # t.test(ClockDuration ~ Session, data = tostat, var.equal= TRUE)
 
 ```
 
-#### EM distributions
-
 Two largely overlapping distributions, same central tendency, highly granular responses.
 
 ```{r}
-ggplot(tostat,aes(y=EM,x = Session, col=Session)) +
+ggplot(tostat,aes(y=EstimatedDuration,x = Session, col=Session)) +
   geom_beeswarm(priority = 'random',cex = .3, col = 'grey') +
   geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
   geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3, y=2,data = N, show.legend = F) +
   theme_minimal() +
   scale_y_log10() +
-  ylab('EM (min)')
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  ylab('EstimatedDuration (min)')
 
-ggplot(tostat,aes(x=EM,col = Session)) +
+ggplot(tostat,aes(x=EstimatedDuration,col = Session)) +
   stat_ecdf() +
   theme_minimal() + 
   scale_x_log10() +
-  xlab('EM (min)') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  xlab('EstimatedDuration (min)') +
   ylab('Proportion')
 # t.test(ClockDuration ~ Session, data = tostat, var.equal= TRUE)
 
 ```
 
-#### rEE distributions
-
 Two largely overlapping distributions, same central tendency, heavier tails for S1.
 
 ```{r}
-ggplot(tostat,aes(y=rEE,x = Session, col=Session)) +
+ggplot(tostat,aes(y=rEstimationError,x = Session, col=Session)) +
   geom_beeswarm(priority = 'random',cex = .3, col = 'grey') +
   geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
   geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3,y=3.5,data = N, show.legend = F) +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   theme_minimal()
 # +
 #   coord_cartesian(ylim = c(-1,4))
 
-ggplot(tostat,aes(x=rEE,col = Session)) +
+ggplot(tostat,aes(x=rEstimationError,col = Session)) +
   stat_ecdf() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   theme_minimal()
-# t.test(tostat[tostat$Session == 'S1',]$rEE)
-# t.test(tostat[tostat$Session == 'SC',]$rEE)
-# t.test(rEE ~ Session, data = tostat, var.equal= TRUE)
+# t.test(tostat[tostat$Session == 'S1',]$rEstimationError)
+# t.test(tostat[tostat$Session == 'SC',]$rEstimationError)
+# t.test(rEstimationError ~ Session, data = tostat, var.equal= TRUE)
 
 ```
 
-#### rEM distributions
 
 ```{r}
-ggplot(tostat,aes(y=rEM,x = Session, col=Session)) +
+ggplot(tostat,aes(y=rEstimatedDuration,x = Session, col=Session)) +
   geom_beeswarm(priority = 'random',cex = .5, col = 'grey') +
   geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
   geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3, y=log10(3), data = N, show.legend = F) +
   theme_minimal() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   scale_y_log10()
 
 
-ggplot(tostat,aes(x=rEM,col = Session)) +
+ggplot(tostat,aes(x=rEstimatedDuration,col = Session)) +
   stat_ecdf() +
   theme_minimal() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   scale_x_log10()
-# t.test(log10(tostat[tostat$Session == 'S1',]$rEM))
-# t.test(log10(tostat[tostat$Session == 'SC',]$rEM))
-# t.test(log10(rEM) ~ Session, data = tostat, var.equal= TRUE)
+# t.test(log10(tostat[tostat$Session == 'S1',]$rEstimatedDuration))
+# t.test(log10(tostat[tostat$Session == 'SC',]$rEstimatedDuration))
+# t.test(log10(rEstimatedDuration) ~ Session, data = tostat, var.equal= TRUE)
 # 
 # tostat %>%
 #   group_by(Session)%>%
 #   mutate(Age = scale(Age,center = T, scale = F),
 #          Session = factor(Session)) %>%
 #   filter(!is.na(Age)) %>%
-# aov_ez(id = 'PID', dv = 'logrEM', data = ., between = 'Session', covariate = 'Age', factorize = F)
+# aov_ez(id = 'PID', dv = 'logrEstimatedDuration', data = ., between = 'Session', covariate = 'Age', factorize = F)
 
 ```
 
-#### EM = f(ClockDuration)
+#### Model log(EstimatedDuration) = f(log(ClockDuration))
 
 ```{r}
-m <- lm(log10(EM) ~ log10(ClockDuration) * Session, data = tostat) #  %>% mutate(Session = factor(Session,levels = c('SC', 'S1')))
-summary(m)
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session, data = tostat) #  %>% mutate(Session = factor(Session,levels = c('SC', 'S1')))
 plot(m)
 ```
 
@@ -402,19 +437,21 @@ emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockD
   summary(type = 'response') %>%
   ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Session, group = Session)) +
   geom_abline(slope = 1) +
-  geom_point(aes(y= EM, ymin = NA, ymax = NA),alpha = .1, data = RetroDuration %>%
+  geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .1, data = RetroDuration %>%
                filter(Session %in% c('S1','SC')) %>%
                group_by(Country, PID, Session) %>%
-               mutate(EE = mean(EE) / 60,
+               mutate(EstimationError = mean(EstimationError) / 60,
                       ClockDuration = mean(ClockDuration) / 60,
-                      EM = mean(EM) / 60)) +
-  geom_point(aes(y= EM, ymin = NA, ymax = NA),alpha = .5,data = tostat) +
+                      EstimatedDuration = mean(EstimatedDuration) / 60)) +
+  geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .5,data = tostat) +
   geom_line(size = 1) +
   geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
   scale_x_log10() +
   scale_y_log10() +
-  ylab('EM (min)') +
+  ylab('EstimatedDuration (min)') +
   xlab('Clock Duration (min)') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   theme_minimal()
 ```
 Not showing outliers
@@ -423,15 +460,18 @@ emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockD
   summary(type = 'response') %>%
   ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Session, group = Session)) +
   geom_abline(slope = 1) +
-  geom_point(aes(y= EM, ymin = NA, ymax = NA),alpha = .5,data = tostat) +
+  geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .5,data = tostat) +
   geom_line(size = 1) +
   geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
   scale_x_log10() +
   scale_y_log10() +
-  ylab('EM (min)') +
+  ylab('EstimatedDuration (min)') +
   xlab('Clock Duration (min)') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   theme_minimal()
 ```
+
 ```{r}
 summary(m)
 anova(m)
@@ -454,43 +494,20 @@ tostat %>% group_by(Session) %>% summarize(mean_ClockDuration = mean(ClockDurati
 
 ```
 
-<!-- ### rEM = f(ClockDuration) -->
 
-<!-- ```{r} -->
-
-<!-- tostat %>% -->
-
-<!-- ggplot(aes(x = ClockDuration, y = rEM, col = Session, alpha = .1)) + -->
-
-<!--   geom_point(alpha = .1, data = RetroDuration  %>%  -->
-
-<!--                filter(Session %in% c('S1','SC')) %>% -->
-
-<!--                group_by(Country, PID, Session) %>% -->
-
-<!--                mutate(EE = mean(EE) / 60, -->
-
-<!--                       ClockDuration = mean(ClockDuration) / 60, -->
-
-<!--                       EM = mean(EM) / 60)) + -->
-
-<!--   geom_point() + -->
-
-<!--   coord_cartesian(xlim = c(0, 300), ylim = c(0, 10)) -->
-
-<!-- ``` -->
-
-### Effect of age
+### Effect of age and Hour of day
 
 ```{r}
 tostat %>%
   ggplot(aes(x=Age,y = after_stat(ncount), fill = Session)) +
   geom_histogram(position = 'dodge') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
   ylab('normalized count')
 ```
 
 ```{r}
-m <- lm(log10(EM) ~ log10(ClockDuration) * Session + log10(ClockDuration) * Age + log10(ClockDuration) * poly(Hour_Of_Day,3), data = tostat)
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session + log10(ClockDuration) * Age + log10(ClockDuration) * poly(Hour_Of_Day,3), data = tostat)
 summary(m)
 plot(m)
 anova(m)
@@ -501,13 +518,13 @@ anova(m)
 emmeans(m,~ClockDuration+Age,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 80), Age = seq(20,80,10))) %>%
   summary(type = 'response') %>%
   ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Age, group = Age)) +
-  geom_point(aes(y=EM,ymin = NA, ymax = NA),alpha = .5,data = tostat) +
+  geom_point(aes(y=EstimatedDuration,ymin = NA, ymax = NA),alpha = .5,data = tostat) +
   geom_abline(slope = 1) +
   geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
   geom_line(size = 1) +
   scale_x_log10() +
   scale_y_log10() +
-  ylab('EM (s)') +
+  ylab('EstimatedDuration (s)') +
   xlab('Clock Duration (s)') +
   theme_minimal()
 ```
@@ -516,13 +533,273 @@ emmeans(m,~ClockDuration+Age,at = list(ClockDuration = seq(min(tostat$ClockDurat
 emmeans(m,~ClockDuration + Hour_Of_Day,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 80), Hour_Of_Day = seq(0,23))) %>%
   summary(type = 'response') %>%
   ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Hour_Of_Day, group = Hour_Of_Day)) +
-  geom_point(aes(y=EM,ymin = NA, ymax = NA),alpha = .5,data = tostat) +
+  geom_point(aes(y=EstimatedDuration,ymin = NA, ymax = NA),alpha = .5,data = tostat) +
   geom_abline(slope = 1) +
   geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
   geom_line(size = 1) +
   scale_x_log10() +
   scale_y_log10() +
-  ylab('EM (s)') +
+  ylab('EstimatedDuration (s)') +
+  xlab('Clock Duration (s)') +
+  theme_minimal()
+
+```
+
+## Focus on countries that have S1 and SC (FR, IT, JP)
+
+```{r}
+tostat <- RetroDuration_clean %>% 
+  group_by(Country, PID, Session) %>%
+  select(Country,PID, Session, Local_Date,EstimatedDuration, rEstimatedDuration, EstimationError, Age, Sex, Handedness, ClockDuration) %>%
+  filter(Session %in% c('S1','SC'), 
+         Country %in% c('FR','IT','JP')) %>%
+  summarize(Local_Date = unique(Local_Date),
+            EstimationError = mean(EstimationError) / 60,
+            ClockDuration = mean(ClockDuration) / 60,
+            EstimatedDuration = mean(EstimatedDuration) / 60,
+            rEstimatedDuration = mean(rEstimatedDuration),
+            rEstimationError = mean(EstimationError/ClockDuration),
+            Age = unique(Age)) %>%
+  mutate(logrEstimatedDuration = log10(rEstimatedDuration)) %>%
+  add_SubjectiveConfinementIndices() %>%
+  add_StringencyIndex() %>%
+  add_TimeOfDay()
+
+N <- tostat %>%
+  group_by(Session) %>%
+  summarize(N = n())
+```
+
+```{r}
+skimr::skim(ungroup(tostat))
+```
+
+#### Examining distributions
+
+Two largely overlapping distributions, same central tendency, heavier tails for SC.
+
+```{r}
+ggplot(tostat,aes(y = ClockDuration, x = Session, col=Session)) +
+  geom_beeswarm(priority = 'random',cex = .3, col = 'grey') +
+  geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
+  geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3, y = 2, data = N, show.legend = F) +
+  theme_minimal() +
+  scale_y_log10() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  ylab('ClockDuration (min)')
+
+ggplot(tostat,aes(x=ClockDuration,col = Session)) +
+  stat_ecdf() +
+  theme_minimal() + 
+  scale_x_log10() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  xlab('ClockDuration (min)') +
+  ylab('Proportion')
+# t.test(ClockDuration ~ Session, data = tostat, var.equal= TRUE)
+
+```
+
+
+Two largely overlapping distributions, same central tendency, highly granular responses.
+
+```{r}
+ggplot(tostat,aes(y=EstimatedDuration,x = Session, col=Session)) +
+  geom_beeswarm(priority = 'random',cex = .3, col = 'grey') +
+  geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
+  geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3, y=2,data = N, show.legend = F) +
+  theme_minimal() +
+  scale_y_log10() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  ylab('EstimatedDuration (min)')
+
+ggplot(tostat,aes(x=EstimatedDuration,col = Session)) +
+  stat_ecdf() +
+  theme_minimal() + 
+  scale_x_log10() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  xlab('EstimatedDuration (min)') +
+  ylab('Proportion')
+# t.test(ClockDuration ~ Session, data = tostat, var.equal= TRUE)
+
+```
+
+
+Two largely overlapping distributions, same central tendency, heavier tails for S1.
+
+```{r}
+ggplot(tostat,aes(y=rEstimationError,x = Session, col=Session)) +
+  geom_beeswarm(priority = 'random',cex = .3, col = 'grey') +
+  geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
+  geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3,y=3.5,data = N, show.legend = F) +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  theme_minimal()
+# +
+#   coord_cartesian(ylim = c(-1,4))
+
+ggplot(tostat,aes(x=rEstimationError,col = Session)) +
+  stat_ecdf() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  theme_minimal()
+# t.test(tostat[tostat$Session == 'S1',]$rEstimationError)
+# t.test(tostat[tostat$Session == 'SC',]$rEstimationError)
+# t.test(rEstimationError ~ Session, data = tostat, var.equal= TRUE)
+
+```
+
+
+```{r}
+ggplot(tostat,aes(y=rEstimatedDuration,x = Session, col=Session)) +
+  geom_beeswarm(priority = 'random',cex = .5, col = 'grey') +
+  geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
+  geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3, y=log10(3), data = N, show.legend = F) +
+  theme_minimal() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  scale_y_log10()
+
+
+ggplot(tostat,aes(x=rEstimatedDuration,col = Session)) +
+  stat_ecdf() +
+  theme_minimal() +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  scale_x_log10()
+# t.test(log10(tostat[tostat$Session == 'S1',]$rEstimatedDuration))
+# t.test(log10(tostat[tostat$Session == 'SC',]$rEstimatedDuration))
+# t.test(log10(rEstimatedDuration) ~ Session, data = tostat, var.equal= TRUE)
+# 
+# tostat %>%
+#   group_by(Session)%>%
+#   mutate(Age = scale(Age,center = T, scale = F),
+#          Session = factor(Session)) %>%
+#   filter(!is.na(Age)) %>%
+# aov_ez(id = 'PID', dv = 'logrEstimatedDuration', data = ., between = 'Session', covariate = 'Age', factorize = F)
+
+```
+
+#### Model log(EstimatedDuration) = f(log(ClockDuration))
+
+```{r}
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session, data = tostat) #  %>% mutate(Session = factor(Session,levels = c('SC', 'S1')))
+plot(m)
+```
+
+Outliers are more transparent.
+
+```{r}
+emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 20))) %>%
+  summary(type = 'response') %>%
+  ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Session, group = Session)) +
+  geom_abline(slope = 1) +
+  geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .1, data = RetroDuration %>%
+               filter(Session %in% c('S1','SC')) %>%
+               group_by(Country, PID, Session) %>%
+               mutate(EstimationError = mean(EstimationError) / 60,
+                      ClockDuration = mean(ClockDuration) / 60,
+                      EstimatedDuration = mean(EstimatedDuration) / 60)) +
+  geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .5,data = tostat) +
+  geom_line(size = 1) +
+  geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
+  scale_x_log10() +
+  scale_y_log10() +
+  ylab('EstimatedDuration (min)') +
+  xlab('Clock Duration (min)') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  theme_minimal()
+```
+Not showing outliers
+```{r}
+emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 20))) %>%
+  summary(type = 'response') %>%
+  ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Session, group = Session)) +
+  geom_abline(slope = 1) +
+  geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .5,data = tostat) +
+  geom_line(size = 1) +
+  geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
+  scale_x_log10() +
+  scale_y_log10() +
+  ylab('EstimatedDuration (min)') +
+  xlab('Clock Duration (min)') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  theme_minimal()
+```
+
+```{r}
+summary(m)
+anova(m)
+
+summary(emmeans(m,~ClockDuration+Session,at = list(ClockDuration = c(10,30,60))),type = 'response') %>%
+  mutate(ClockDuration = lubridate::as.duration(ClockDuration * 60),
+         response = lubridate::as.duration(response * 60))
+
+
+summary(emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(15,20, by = .1))),type = 'response') %>%
+  mutate(ClockDuration = lubridate::as.duration(ClockDuration * 60),
+         response = lubridate::as.duration(response * 60),
+         identity = response - ClockDuration) %>%
+  group_by(Session) %>%
+  filter(abs(identity) == min(abs(identity))) %>%
+  select(-response)
+
+
+tostat %>% group_by(Session) %>% summarize(mean_ClockDuration = mean(ClockDuration))
+
+```
+
+
+### Effect of age and hour of the day
+
+```{r}
+tostat %>%
+  ggplot(aes(x=Age,y = after_stat(ncount), fill = Session)) +
+  geom_histogram(position = 'dodge') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  ylab('normalized count')
+```
+
+```{r}
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session + log10(ClockDuration) * Age + log10(ClockDuration) * poly(Hour_Of_Day,3), data = tostat)
+summary(m)
+plot(m)
+anova(m)
+```
+
+
+```{r}
+emmeans(m,~ClockDuration+Age,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 80), Age = seq(20,80,10))) %>%
+  summary(type = 'response') %>%
+  ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Age, group = Age)) +
+  geom_point(aes(y=EstimatedDuration,ymin = NA, ymax = NA),alpha = .5,data = tostat) +
+  geom_abline(slope = 1) +
+  geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
+  geom_line(size = 1) +
+  scale_x_log10() +
+  scale_y_log10() +
+  ylab('EstimatedDuration (s)') +
+  xlab('Clock Duration (s)') +
+  theme_minimal()
+```
+
+```{r}
+emmeans(m,~ClockDuration + Hour_Of_Day,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 80), Hour_Of_Day = seq(0,23))) %>%
+  summary(type = 'response') %>%
+  ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Hour_Of_Day, group = Hour_Of_Day)) +
+  geom_point(aes(y=EstimatedDuration,ymin = NA, ymax = NA),alpha = .5,data = tostat) +
+  geom_abline(slope = 1) +
+  geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
+  geom_line(size = 1) +
+  scale_x_log10() +
+  scale_y_log10() +
+  ylab('EstimatedDuration (s)') +
   xlab('Clock Duration (s)') +
   theme_minimal()
 
@@ -535,19 +812,20 @@ We first insert all covariates in the data, looking at all sessions, now.
 ```{r}
 tostat <- RetroDuration_clean %>% 
   group_by(Country, PID, Session) %>%
-  select(Country,PID, Session, Local_Date, EM, rEM, EE, Age, Sex, Handedness, ClockDuration) %>%
-  filter(!is.na(rEM), rEM != 0) %>%
+  select(Country,PID, Session, Local_Date, EstimatedDuration, rEstimatedDuration, EstimationError, Age, Sex, Handedness, ClockDuration) %>%
+  filter(!is.na(rEstimatedDuration), rEstimatedDuration != 0) %>%
   summarize(n = n(),
             Local_Date = unique(Local_Date),
-            EM = mean(EM),
-            rEM = mean(rEM),
-            rEE = mean(EE/ClockDuration),
-            EE = mean(EE),
+            EstimatedDuration = mean(EstimatedDuration),
+            rEstimatedDuration = mean(rEstimatedDuration),
+            rEstimationError = mean(EstimationError/ClockDuration),
+            EstimationError = mean(EstimationError),
             ClockDuration = mean(ClockDuration),
             Age = unique(Age)) %>%
-  mutate(logrEM = log10(rEM)) %>%
-  # add_SubjectiveConfinementDuration() %>%
+  mutate(logrEstimatedDuration = log10(rEstimatedDuration)) %>%
+  add_SubjectiveConfinementDuration() %>%
   add_SubjectiveConfinementIndices() %>%
+  add_Mobility() %>%
   add_StringencyIndex() %>%
   add_TimeOfDay()
 
@@ -565,24 +843,49 @@ tostat %>%
   group_by(Country,PID,Session) %>%
   slice(1) %>%
   ggplot(aes(x=Stringency_Index,fill = Session, y = after_stat(ncount)),data = .) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
   geom_histogram(breaks = seq(0,100,by=5), position = 'dodge')
+  
+```
+```{r}
+tostat %>%
+  group_by(Country,PID,Session) %>%
+  slice(1) %>%
+  ggplot(aes(x=Mobility_Transit,fill = Session, y = after_stat(ncount)),data = .) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
+  geom_histogram(bins = 20, position = 'dodge')
+  
+```
+
+```{r}
+tostat %>%
+  group_by(Country,PID,Session) %>%
+  slice(1) %>%
+  pivot_longer(cols = starts_with('Mobility_'), names_to = 'Mobility', values_to = 'Percent_from_baseline', names_prefix = 'Mobility_') %>%
+  ggplot(aes(x=Percent_from_baseline,fill = Session, y = after_stat(ncount)),data = .) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
+  geom_histogram(bins = 30, position = 'dodge') +
+  facet_wrap(~Mobility, scales = 'free_x')
   
 ```
 
 #### Modeling
 
 Subjects were repeatedly tested in S1-S4, and a different pool of subjects were tested in SC.
-We thus try to see if the error related to subjects in the intercept of EM is worth modeling as a random effect.
+We thus try to see if the error related to subjects in the intercept of EstimatedDuration is worth modeling as a random effect.
 The standard deviation of the estimated random effects is much smaller than that of the residuals, suggesting that random effects can be ignored in this case.
 
 ```{r}
-# m <- aov_4(data = tostat, log10(rEM) ~ Stringency_Index + Subjective_Confinement + Time_Of_Day + (1 | PID))
+# m <- aov_4(data = tostat, log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Time_Of_Day + (1 | PID))
 # 
-# m <- aov_ez(id = 'PID', dv = 'logrEM', within = c('Stringency_Index', 'Subjective_Confinement', 'Time_Of_Day'), data = tostat)
+# m <- aov_ez(id = 'PID', dv = 'logrEstimatedDuration', within = c('Stringency_Index', 'Subjective_Confinement', 'Time_Of_Day'), data = tostat)
 
 # %>% filter(!(Session == 'SC' & Country == 'IT') & !(Session == 'SC' & Country == 'JP'))
 
-m <- lmer(log10(rEM) ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3) +  (1 | PID), data = tostat )
+m <- lmer(log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3) +  (1 | PID), data = tostat )
 summary(m)
 anova(m)
 effectsize::eta_squared(m)
@@ -591,7 +894,88 @@ effectsize::eta_squared(m)
 Indeed, running a simple lm on the data with the same fixed effects retrieves the same effects.
 
 ```{r}
-m <- lm(log10(rEM) ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+
+plot(m)
+
+
+```
+
+Same reasoning with Mobility_Transit:
+
+```{r}
+m <- lmer(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  (1 | PID), data = tostat )
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+```
+
+Indeed, running a simple lm on the data with the same fixed effects retrieves the same effects.
+
+```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+
+plot(m)
+
+
+```
+#### Illustrating
+
+##### Stringency Index
+
+```{r}
+
+em <- summary(emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(20,100,by = 20))), type = 'response')
+
+ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_col(aes(y=response), col = 'black', data = em) +
+  geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) +
+  scale_y_log10(limits = c(.3,3)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
+
+ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_jitter(alpha = .3) +
+  geom_line(aes(y=response), col = 'black', data = em) +
+  geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
+  scale_y_log10( limits = c(.3,3)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
+em
+
+```
+##### Mobility Transit
+
+```{r}
+
+em <- summary(emmeans(m, ~ Mobility_Transit, at = list(Mobility_Transit = seq(-100,10,by = 10))), type = 'response')
+
+ggplot(aes(x = Mobility_Transit,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_col(aes(y=response), col = 'black', data = em) +
+  geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) +
+  scale_y_log10(limits = c(.3,3)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
+
+ggplot(aes(x = Mobility_Transit,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_jitter(alpha = .3) +
+  geom_line(aes(y=response), col = 'black', data = em) +
+  geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
+  scale_y_log10( limits = c(.3,3)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
+em
+
+```
+Other mobility measures have little effect on rEstimatedDuration
+```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Mobility_Retail + Mobility_Parks + Mobility_WorkPlaces + Mobility_Residential + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
 summary(m)
 anova(m)
 effectsize::eta_squared(m)
@@ -602,44 +986,32 @@ plot(m)
 ```
 
 
-#### Illustrating
-
-##### Stringency Index
-
 ```{r}
-
-t_shift <- scales::trans_new("shift",
-                             transform = function(x) {x-1},
-                             inverse = function(x) {x+1})
+emm <- emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(20,100,by = 20)))
+em <- predict(emm, type = 'response', interval = 'prediction')
 
 
-em <- summary(emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(20,100,by = 20))), type = 'response')
-
-ggplot(aes(x = Stringency_Index,y = rEM, col = Session), data = tostat) +
-  geom_col(aes(y=response), col = 'black', data = em) +
-  geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) +
-  scale_y_log10(limits = c(.3,3))
-
-ggplot(aes(x = Stringency_Index,y = rEM, col = Session), data = tostat) +
-  geom_point(alpha = .3) +
-  geom_line(aes(y=response), col = 'black', data = em) +
-  geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
-  scale_y_log10( limits = c(.3,3))
-
+ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_jitter(alpha = .3) +
+  geom_line(aes(y=prediction), col = 'black', data = em) +
+  geom_ribbon(aes(y=prediction, ymin = lower.PL, ymax = upper.PL), col = NA, alpha = .2, data = em) +
+  scale_y_log10( limits = c(.3,3)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
 
 ```
 
 <!-- ```{r} -->
 <!-- em <- summary(emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(min(tostat$Stringency_Index, na.rm = T),max(tostat$Stringency_Index, na.rm = T), by=5)))) -->
 
-<!-- ggplot(aes(x = Stringency_Index,y = log10(rEM), col = Session), data = tostat) + -->
+<!-- ggplot(aes(x = Stringency_Index,y = log10(rEstimatedDuration), col = Session), data = tostat) + -->
 <!--   geom_point(alpha = .3) + -->
 <!--   geom_ribbon(aes(y=emmean, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .1, data = em) + -->
 <!--   geom_line(aes(y=emmean), col = 'black', data = em) -->
 
 <!-- em <- summary(emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(0,100,by = 20)))) -->
 
-<!-- ggplot(aes(x = Stringency_Index,y = log10(rEM), col = Session), data = tostat) + -->
+<!-- ggplot(aes(x = Stringency_Index,y = log10(rEstimatedDuration), col = Session), data = tostat) + -->
 <!--   geom_point(alpha = .3) + -->
 <!--   geom_col(aes(y=emmean), col = 'black', data = em) + -->
 <!--   geom_pointrange(aes(y=emmean, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) + -->
@@ -648,19 +1020,19 @@ ggplot(aes(x = Stringency_Index,y = rEM, col = Session), data = tostat) +
 <!-- em <- summary(emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(20,100,by = 20))), type = 'response') -->
 
 
-<!-- ggplot(aes(x = Stringency_Index,y = rEM, col = Session), data = tostat) + -->
+<!-- ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) + -->
 <!--   geom_point(alpha = .3) + -->
 <!--   geom_col(aes(y=response), col = 'black', data = em) + -->
 <!--   geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) + -->
 <!--   scale_y_log10(limits = c(.3,3)) -->
 
-<!-- ggplot(aes(x = Stringency_Index,y = rEM, col = Session), data = tostat) + -->
+<!-- ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) + -->
 <!--   geom_point(alpha = .3) + -->
 <!--   geom_col(aes(y=response), col = 'black', data = em) + -->
 <!--   geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) + -->
 <!--   scale_y_log10() -->
 
-<!-- ggplot(aes(x = Stringency_Index,y = rEM, col = Session), data = tostat) + -->
+<!-- ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) + -->
 <!--   # geom_point(alpha = .3) +  -->
 <!--   geom_col(aes(y=response), col = 'black', data = em) + -->
 <!--   geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) + -->
@@ -670,103 +1042,41 @@ ggplot(aes(x = Stringency_Index,y = rEM, col = Session), data = tostat) +
 ##### Time Of Day
 
 ```{r}
+t_shift <- scales::trans_new("shift",
+                             transform = function(x) {x-1},
+                             inverse = function(x) {x+1})
+
 em <- summary(emmeans(m, ~ Hour_Of_Day, at = list(Hour_Of_Day = seq(6,24, by=1))), type = 'response')
 
 
-ggplot(aes(x = Hour_Of_Day,y = rEM, col = Session), data = tostat) +
+ggplot(aes(x = Hour_Of_Day,y = rEstimatedDuration, col = Session), data = tostat) +
   geom_col(aes(y=response), col = 'black', data = em) +
   geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) +
   scale_y_continuous(trans = t_shift, limits = c(.3,3)) +
-  xlim(c(7,23))
+  xlim(c(7,23)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
 
-ggplot(aes(x = Hour_Of_Day,y = rEM, col = Session), data = tostat) +
+ggplot(aes(x = Hour_Of_Day,y = rEstimatedDuration, col = Session), data = tostat) +
   geom_point(alpha = .3) +
   geom_line(aes(y=response), col = 'black', data = em) +
   geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
   scale_y_continuous(trans = t_shift, limits = c(.3,3)) +
-  xlim(c(7,23))
+  xlim(c(7,23)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
 ```
-
-# Passage of Time
-
 ```{r}
+em <- predict(emmeans(m, ~ Hour_Of_Day, at = list(Hour_Of_Day = seq(6,24, by=1))), type = 'response', interval = 'prediction')
 
-ggplot(RetroDuration_clean,aes(x=Passage_of_Time,y=after_stat(ncount),fill=Session)) +
-  geom_histogram(bins = 20, position='dodge') +
-  ylab('Normalized counts')
 
-```
-
-## Focus on S1 vs. SC comparison
-
-```{r}
-tostat <- RetroDuration_clean %>% 
-  group_by(Country, PID, Session) %>%
-  select(Country,PID, Session, Local_Date,EM, rEM, EE, Age, Sex, Handedness, ClockDuration, Passage_of_Time) %>%
-  filter(Session %in% c('S1','SC')) %>%
-  summarize(Local_Date = unique(Local_Date),
-            EE = mean(EE) / 60,
-            ClockDuration = mean(ClockDuration) / 60,
-            EM = mean(EM) / 60,
-            rEM = mean(rEM),
-            rEE = mean(EE/ClockDuration),
-            Age = unique(Age),
-            Passage_of_Time = unique(Passage_of_Time),
-            rPoT = Passage_of_Time / 50) %>%
-  mutate(logrEM = log10(rEM)) %>%
-  add_SubjectiveConfinementIndices() %>%
-  add_StringencyIndex() %>%
-  add_TimeOfDay()
-
-N <- tostat %>%
-  group_by(Session) %>%
-  summarize(N = n())
-```
-
-```{r}
-skimr::skim(ungroup(tostat))
-```
-
-```{r}
-
-ggplot(tostat,aes(x=rPoT,y=after_stat(ncount),fill=Session)) +
-  geom_histogram(bins = 20, position='dodge') +
-  ylab('Normalized counts')
-
-```
-
-```{r}
-ggplot(tostat,aes(y = rPoT, x = Session, col=Session)) +
-  geom_beeswarm(priority = 'random',cex = .3, col = 'grey') +
-  geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
-  geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3, y = 1.5, data = N, show.legend = F) +
-  theme_minimal() +
-  ylab('Passage of Time')
-
-ggplot(tostat,aes(x=rPoT,col = Session)) +
-  stat_ecdf() +
-  theme_minimal() + 
-  xlab('Passage of Time') +
-  ylab('Proportion')
-
-```
-
-#### Passage of Time = f(ClockDuration)
-
-```{r}
-m <- lm(rPoT ~ log10(ClockDuration) * Session, data = tostat) #  %>% mutate(Session = factor(Session,levels = c('SC', 'S1')))
-summary(m)
-plot(m)
-```
-
-#### rPoT ~ Stringency & Time_of_Day
-
-```{r}
-
-m <- lmer(rPoT ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3) +  (1 | PID), data = tostat )
-summary(m)
-anova(m)
-effectsize::eta_squared(m)
-
+ggplot(aes(x = Hour_Of_Day,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_point(alpha = .3) +
+  geom_line(aes(y=prediction), col = 'black', data = em) +
+  geom_ribbon(aes(y=prediction, ymin = lower.PL, ymax = upper.PL), col = NA, alpha = .2, data = em) +
+  scale_y_continuous(trans = t_shift, limits = c(.3,3)) +
+  xlim(c(7,23)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
 ```
 
