@@ -54,6 +54,7 @@ alldata %>%
 ```{r}
 alldata %>%
   group_by(PID, Unique_Name, Session) %>%
+  # SemanticTime run 2 is the last task
   filter(Session == 'S1', Unique_Name == 'SemanticTime', Run == 2) %>%
   slice(1) %>%
   group_by() %>%
@@ -64,6 +65,7 @@ alldata %>%
 ```{r}
 alldata %>%
   group_by(PID, Unique_Name, Session) %>%
+  # SemanticTime run 2 is the last task
   filter(Session == 'S2', Unique_Name == 'SemanticTime', Run == 2) %>%
   slice(1) %>%
   group_by() %>%
@@ -73,6 +75,7 @@ alldata %>%
 ```{r}
 alldata %>%
   group_by(PID, Unique_Name, Session) %>%
+  # SelfPercept is the last task
   filter(Session == 'S3', Unique_Name == 'SelfPercept') %>%
   slice(1) %>%
   group_by() %>%
