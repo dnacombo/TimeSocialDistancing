@@ -30,9 +30,9 @@ l$datadir <- params$datadir
 
 dum <- list2env(l, envir = environment())
 
-sessiondatadir <- tibble(fname = list.files(datadir,paste0('data_exp_[^\\.]+Session[0-9]+$'),include.dirs = T) ) %>%
+sessiondatadir <- tibble(fname = list.files(l$datadir,paste0('data_exp_[^\\.]+Session.*$'),include.dirs = T) ) %>%
   filter(! str_detect(fname,'processed'),
-         str_detect(fname,ExperimentName[1]))
+         str_detect(fname,paste0('_',Country,'_')))
 
 fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(datadir,x),pattern='S._Welcome.csv',full.names = T)})
 
@@ -109,6 +109,22 @@ PIDs %>% group_by(Session) %>%
   geom_text(position = position_stack(vjust = 0.5)) +
   ggtitle('Number of participants per session')
 ```
+# Fix PID
+Two people have used "julie" as a PubID. We disentangle them here.
+
+```{r echo=TRUE}
+patch <- tibble(PubID = c("marinaz", "giuseppe"), Session1 = c("1324941",""), Session2 = c('1324941',''), Session4 = c("", '2596814'))
+(nuPIDs <- nuPIDs %>%
+    filter(!Session4 == "2596814", !Session1 == '1324941') %>%
+    bind_rows(patch)) %>%
+  select(-email,-PubID) %>%
+  distinct() %>%
+  write_csv(file.path(datadir,paste0("AllPID_",Country[1], ".csv")),na="")
+
+```
+
+
+
 ## Find participants who used several email but the same pubID
 
 ```{r}
