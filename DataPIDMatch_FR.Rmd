@@ -33,7 +33,7 @@ sessiondatadir <- tibble(fname = list.files(l$datadir,paste0('data_exp_[^\\.]+Se
          str_detect(fname,paste0('_',Country,'_')))
 
 
-fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(l$datadir,x),pattern='S._Welcome.csv',full.names = T)})
+fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(l$datadir,x),pattern='S._Welcome.csv|S4_ParticipantTracker.csv',full.names = T)})
 
 # initialize empty list
 PIDs <- tibble(PubID=character(),email=character(),Session=character(),`Participant Private ID`=character())
@@ -45,42 +45,64 @@ PIDs <- tibble(PubID=character(),email=character(),Session=character(),`Particip
 # for each session, we retrieve pubID, privID, and email
 for (f in fs) {
   S <- str_match(basename(f),'S(\\d)')[2]
-  PID <- read_csv(f,col_types = cols(.default = col_character())) %>%
-    filter(`Question Key` %in% c('PID', 'email')) %>%
-    pivot_wider(id_cols = c(`Participant Private ID`,`Experiment ID`)  ,names_from = `Question Key`, values_from = Response) %>%
-    mutate(Session = S,
-           Country = !!Country,
-           PubID = str_to_lower(PID))
-  
+  switch(S,
+         '4' = {
+           PID <- read_csv(f,col_types = cols(.default = col_character())) %>%
+             filter(`Question Key` %in% c('known_participant-text')) %>%
+             pivot_wider(id_cols = c(`Participant Private ID`,`Experiment ID`)  ,names_from = `Question Key`, values_from = Response) %>%
+             rename(PID = `known_participant-text`) %>% 
+             mutate(email = '',
+                    Session = S,
+                    Country = !!Country,
+                    PubID = str_to_lower(PID))
+           f <- str_replace(f,'S4_ParticipantTracker.csv','S4_Consent.csv')
+           Consent <- read_csv(f,col_types = cols(.default = col_character())) %>%
+             filter(`Question Key` %in% c('PID', 'email')) %>%
+             pivot_wider(id_cols = c(`Participant Private ID`,`Experiment ID`)  ,names_from = `Question Key`, values_from = Response) %>%
+             mutate(Session = S,
+                    Country = !!Country,
+                    PubID = str_to_lower(PID))
+           PID <- bind_rows(Consent,PID) %>%
+             distinct(`Participant Private ID`, .keep_all = T)
+         },
+         {
+           PID <- read_csv(f,col_types = cols(.default = col_character())) %>%
+             filter(`Question Key` %in% c('PID', 'email')) %>%
+             pivot_wider(id_cols = c(`Participant Private ID`,`Experiment ID`)  ,names_from = `Question Key`, values_from = Response) %>%
+             mutate(Session = S,
+                    Country = !!Country,
+                    PubID = str_to_lower(PID))
+         }
+  )
   
   PIDs <- bind_rows(PIDs,PID) %>%
     # distinct() %>%
     select(`Experiment ID`,	`Country`,	`email`,	`PubID`,everything())
-}
+  }
 
 # list all PIDs used. Matching PIDs across sessions are listed together. Attach email.
 # Columns: PID, email, Session1, Session2 etc. 
-matched_by_PID <- pivot_wider(PIDs,id_cols = PubID,names_from = Session,values_from = `Participant Private ID`, 
+matched_by_PID <- pivot_wider(PIDs, id_cols = PubID, names_from = Session, values_from = `Participant Private ID`, 
                               names_prefix = 'Session',
                               values_fn = function(x){do.call('paste',list(x,collapse = ' '))}) %>%
   left_join(select(PIDs,email,PubID),by='PubID') %>%
-  distinct()
+  distinct(PubID, .keep_all = T)
 
 # same as above but finding matching emails across sessions.
 # Columns: email, Session1, Session2, etc.
 matched_by_email <- pivot_wider(PIDs,id_cols = email,names_from = Session,values_from = `Participant Private ID`, 
                                 names_prefix = 'Session',
                                 values_fn = function(x){do.call('paste',list(x,collapse = ' '))}) %>%
-  distinct()
+  distinct(email, .keep_all = T)
 
 # list session names
 cn <- tibble(cols = colnames(matched_by_PID)) %>% filter(str_detect(cols,'^Session'))
 
 # join the two lists by email
 nuPIDs <- right_join(matched_by_PID,
-                      matched_by_email,
-                      by = 'email') %>%
-    distinct()
+                     matched_by_email,
+                     by = 'email') %>%
+  distinct(email, .keep_all = T)
 
 # unite all private IDs (matched by email and by PID) in sessions
 for (isess in cn$cols) {
@@ -141,7 +163,6 @@ matched_by_PID %>% filter(PubID %in% duppid) %>% distinct() %>% select(email, Pu
 Add a PID column to the data, with unique ID for each participant (the first private ID they appear under).
 
 ```{r}
-
 suppressWarnings(
   PIDs <- read_csv(file.path(datadir,paste0('AllPID_',Country,'.csv')),col_types = cols()) %>%
     unite('PID',starts_with('Session'),sep=' ',remove=F) %>%
@@ -150,6 +171,7 @@ suppressWarnings(
     separate(Session1,sprintf('S1_%d',1:5)) %>%
     separate(Session2,sprintf('S2_%d',1:5)) %>%
     separate(Session3,sprintf('S3_%d',1:5)) %>%
+    separate(Session4,sprintf('S4_%d',1:5)) %>%
     pivot_longer(cols = starts_with('S'),values_to = 'origPID') %>%
     filter(!is.na(origPID)) %>%
     select(-name)
@@ -159,12 +181,13 @@ suppressWarnings(
 matchingPIDs <- PIDs$PID
 names(matchingPIDs) <- PIDs$origPID
 
-sessiondatadir <- tibble(fname = list.files(datadir,paste0('data_exp_[^\\.]+Session[0-9]+$'),include.dirs = T) ) %>%
+sessiondatadir <- tibble(fname = list.files(l$datadir,paste0('data_exp_[^\\.]+Session.*$'),include.dirs = T) ) %>%
   filter(! str_detect(fname,'processed'),
-         str_detect(fname,Country))
+         str_detect(fname,paste0('_',Country,'_')))
 
 fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(datadir,x),pattern='S._.*.csv',full.names = T)})
 fs <- fs[!str_detect(fs,'PID.csv')]
+# fs <- fs[str_detect(fs,'S4')]
 
 for (f in fs) {
   cat(basename(f),sep = '\n')
