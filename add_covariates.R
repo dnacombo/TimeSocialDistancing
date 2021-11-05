@@ -1,4 +1,3 @@
-
 add_StringencyIndex <- function(d)
 {
   
@@ -84,3 +83,67 @@ add_TimeOfDay <- function(d){
                Time_Of_Day = cut(Hour_Of_Day, breaks = c(0,6,12,18,24), labels = c('night', 'morning', 'afternoon', 'evening')))
 }
 
+add_Mobility <- function(d){
+  if (! 'Local_Date' %in% colnames(d)) {
+    stop('Must have Local_Date to add mobility indices')
+  }
+  
+  countryMapping <- c(FR = 'France',
+                      DE = 'Germany',
+                      IT = 'Italy',
+                      TR = 'Turkey',
+                      AR = 'Argentina',
+                      UK = 'United Kingdom',
+                      CA = 'Canada',
+                      CO = 'Colombia',
+                      GR = 'Greece', 
+                      IN = 'India',
+                      JP = 'Japan'
+  )
+  
+  # mobility <- read_csv('TSDshiny/data/Global_Mobility_Report.csv', col_types = cols(
+  #   country_region_code = col_character(),
+  #   country_region = col_character(),
+  #   sub_region_1 = col_character(),
+  #   sub_region_2 = col_character(),
+  #   metro_area = col_logical(),
+  #   iso_3166_2_code = col_character(),
+  #   census_fips_code = col_logical(),
+  #   place_id = col_character(),
+  #   date = col_date(format = ""),
+  #   retail_and_recreation_percent_change_from_baseline = col_double(),
+  #   grocery_and_pharmacy_percent_change_from_baseline = col_double(),
+  #   parks_percent_change_from_baseline = col_double(),
+  #   transit_stations_percent_change_from_baseline = col_double(),
+  #   workplaces_percent_change_from_baseline = col_double(),
+  #   residential_percent_change_from_baseline = col_double()  )) %>%
+  #   filter(country_region %in% countryMapping,
+  #          is.na(sub_region_1),
+  #          is.na(sub_region_2)) %>%
+  #   transmute(Country = country_region,
+  #             Day = lubridate::date(date),
+  #             Mobility_Transit = transit_stations_percent_change_from_baseline,
+  #             Mobility_Retail = retail_and_recreation_percent_change_from_baseline,
+  #             Mobility_Parks = parks_percent_change_from_baseline,
+  #             Mobility_WorkPlaces = workplaces_percent_change_from_baseline,
+  #             Mobility_Residential = residential_percent_change_from_baseline
+  #             ) %>%
+  # write_csv('TSDshiny/data/MyGlobal_Mobility_Report.csv')
+  
+  
+  mobility <- read_csv('TSDshiny/data/MyGlobal_Mobility_Report.csv', col_types = cols(
+    Country = col_character(),
+    Day = col_date(format = ""),
+    Mobility_Transit = col_double(),
+    Mobility_Retail = col_double(),
+    Mobility_Parks = col_double(),
+    Mobility_WorkPlaces = col_double(),
+    Mobility_Residential = col_double()
+  ))
+  
+  d <- d %>% 
+    mutate(Day = lubridate::date(Local_Date)) %>%
+    mutate(Country2 = recode(Country,!!!countryMapping),.before = 1) %>%
+    left_join(mobility, by = c('Day', Country2 = 'Country')) %>%
+    select(-Country2, -Day)
+}
