@@ -88,7 +88,8 @@ Demographics <- Demo %>%
          Age = round(Age, digits = 1),
          Session = as.factor(Session),
          PID = as.factor(PID)) %>%
-  select(-`Age-month`, -`Age-year`, -`sex-quantised`, -DOB)
+  select(-`Age-month`, -`Age-year`, -`sex-quantised`, -DOB) %>%
+  filter(Age >= 18)
 
 save(Demographics,file = file.path(datadir,'Demographics.RData'))
 
