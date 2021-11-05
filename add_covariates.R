@@ -32,11 +32,11 @@ add_StringencyIndex <- function(d)
   
 }
 
-add_demographics <- function(d) {
+add_Demographics <- function(d) {
   load(file = file.path('TSDshiny/data','Demographics.RData'))
   
   d %>% 
-    left_join(Demographics, by = 'PID')
+    left_join(Demographics %>% select(-Session,-Country, -UTC_Date), by = 'PID')
 }
 
 add_SubjectiveConfinementIndices <- function(d){
