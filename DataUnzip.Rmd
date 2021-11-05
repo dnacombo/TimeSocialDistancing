@@ -10,14 +10,14 @@ output:
     df_print: paged
     toc: yes
 params:
-  Country: FR
+  Country: JP
   ExperimentName: null
   ExperimentID: null
   Session: null    
   datadir: null
 ---
 
-```{r, message=F}
+```{r Prepare, message=FALSE}
 # library(tidyverse)
 # online <- T
 source('helpers.R')
@@ -34,7 +34,7 @@ dum <- list2env(l, envir = environment())
 
 ### list and unzip files
 
-```{r, message=F}
+```{r list and unzip files, message=F}
 
 # list files
 zipfiles <- unlist(sapply(ExperimentID,function(f){list.files(datadir,paste0('data_exp_',f,'-v.*.zip'),full.names = T)}))
@@ -65,14 +65,14 @@ The text below shows csv files that are missing from [this google sheet](https:/
 **These tasks/questionnaires will not be present in the output:**
 
 
-```{r,warning=F}
+```{r locate and expand UniqueNames,warning=F}
 fs <- list.files(tmpdir,full.names = T,recursive = T)
 dum <- sapply(sessiondatadir,dir.create)
 
 for (f in fs) {
   eid <- str_replace(f,'.*\\.tmp/[A-Z]*/data_exp_([0-9]{5}).*','\\1')
   l <- paramsMatch(ExperimentID = eid,experimentIDs = ExperimentIDs)
-  # if (grepl('rz24',f)) {stop()}
+  # if (grepl('data_exp_16346.*bc7r',f)) {stop()}
   if (file.size(f) < 400) {
     file.remove(f)
     next
@@ -91,7 +91,7 @@ for (f in fs) {
   
   CurrNode <- filter(allnodes, Session == l$Session, get(l$ExperimentName) == gsub('.*-([[:alnum:]]{4})', '\\1', unique(d$`Tree Node Key`)))
   if (nrow(CurrNode) > 1) {
-    cat(paste('###### Several UniqueNames for', basename(f), '?!? check the google spreadsheet!'))
+    cat(paste('###### Several UniqueNames for', basename(f), '?!? ', ':', unique(d$`Task Name`)),sep='\n')
     dum <- file.remove(f)
     next
   }
@@ -117,7 +117,7 @@ for (f in fs) {
 
 **Output files created:**
 
-```{r,message=F}
+```{r merge versions, message=F}
 fs <- list.files(sessiondatadir,pattern='([^\\/]*)_v-(.*).csv',full.names = T) %>%
   tibble(fname=.) %>%
   extract(fname,into=c('UniqueName','Experiment Version'),'([^\\/]*)_v-(.*).csv',remove = F) %>%
