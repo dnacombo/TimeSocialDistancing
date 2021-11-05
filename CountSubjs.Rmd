@@ -27,6 +27,20 @@ source('helpers.R')
 load("AllData.RData")
 ```
 
+
+# General count, all countries, Sessions, UniqueNames & Runs
+
+```{r}
+count <- alldata %>%
+  mutate(Run = str_trunc(Run,1,ellipsis = '')) %>%
+  filter(Trial_Number == 'END TASK' | Question_Key == 'END QUESTIONNAIRE') %>% 
+  group_by(Country,Session, Run, Unique_Name) %>%
+  summarize(N = n()) %>%
+  pivot_wider(id_cols = c(Session, Unique_Name, Run), values_from = N, names_from = Country) %>%
+  arrange(Session,Unique_Name,Run) %>%
+  googlesheets4::write_sheet(ss = 'https://docs.google.com/spreadsheets/d/1ZUvwLJOXNJneGJ2F2SOdWRTsjESctKbtZwqW9T9_A6E', sheet = 'All Sessions')
+```
+
 # Participants who signed up to start
 
 ```{r}
