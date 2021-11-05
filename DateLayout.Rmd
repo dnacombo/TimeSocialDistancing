@@ -19,11 +19,14 @@ output:
 source('helpers.R')
 library(DT)
 
-l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
+# l <- paramsMatch(Country = params$Country,experimentIDs = ExperimentIDs)
+# l$datadir <- params$datadir
+# l <- as_tibble(l)
+# 
+# alldata <- gimmeRdata(params$datadir, fast = T, progress = T)
+# save(alldata, file = 'AllData.RData')
 
-alldata <- gimmedata(datadir,ExperimentName = paste(l$ExperimentName,collapse = '|'), verbose = F, progress = F) %>%
-  mutate(Country = recode(`Experiment ID`, !!!l$Country), .before = Session)
+load(file = 'AllData.RData')
 ```
 
 ## Counting subjects
