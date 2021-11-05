@@ -59,7 +59,7 @@ Ambidestro,ambidextrous
 Ambidiestro,ambidextrous
 Destrimane,right-handed
 Izquierda,left-handed
-Mancino,left-handed', col_names = F)
+Mancino,left-handed', col_names = F, show_col_types = F)
 recodeHandedness <- HandednessMap$X2
 names(recodeHandedness) <- HandednessMap$X1
 
