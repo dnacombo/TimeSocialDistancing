@@ -1,7 +1,8 @@
 source('helpers.R')
 
 # process some countries selectively (set to NULL for all)
-Country = 'JP' #NULL #'FR'
+Country = NULL #'FR'
+ExperimentName = Country
 UniqueName = NULL
 
 datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
@@ -24,7 +25,7 @@ tbs <- list.files(datadir,'^(S[^_]*)_([^_]*)_?r?([^\\.]*)?.csv', recursive = T) 
          Country = S[3]
          ) %>%
   select(-S) %>%
-  filter(Country %in% l$Country)
+  filter(Country %in% ExperimentName)
 if (!is.null(UniqueName)) {
   tbs <- filter(tbs, UniqueName %in% !!UniqueName)
 }
