@@ -14,6 +14,21 @@ if (!exists('datadir')){
   }
 }
 
+# SessionColorPalette <- c(S1 = '#F862A0',
+#   S2 = '#6BAED6',
+#   S3 = '#BDD7E7',
+#   S4 = '#FCC0D9',
+#   SC = '#585858')
+Palette_Session <- c(S1 = '#FF73AD',
+                         S2 = '#6BD685',
+                         S3 = '#BCE4C6',
+                         S4 = '#FCC0D9',
+                         SC = '#8E8C8C')
+Palette_SessionS1SC <- Palette_Session[names(Palette_Session) %in% c('S1','SC')]
+Palette_Mobility_Transit <- c(high = '#9D83EF', low = '#CFC0FF')
+Palette_Stringency_Index <- c(high = '#FFD45B', low = '#F7ECCD')
+
+
 countryMapping <- c(FR = 'France',
                     DE = 'Germany',
                     IT = 'Italy',
