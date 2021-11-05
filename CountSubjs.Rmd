@@ -127,42 +127,7 @@ ggplot(toplot,aes(x=`UTC_Date`, y=PID, col=Unique_Name, shape = Session)) +
   xlab('Date') + ylab('Participants')
 
 ```
-``
-```{r}
-everyday = alldata %>%
-  arrange(UTC_Date) %>%
-  slice(1,n()) %>%
-  transmute(Day = lubridate::date(UTC_Date))
-everyday = expand_grid(PID = unique(alldata$PID),Day=seq(everyday$Day[1], everyday$Day[2], by = 1))
 
-
-toplot <- alldata %>% 
-  group_by(PID,Unique_Name,Run,Session) %>%
-  filter(`Trial_Number`  =='END TASK' | `Question_Key` == 'END QUESTIONNAIRE') %>%
-  arrange(`UTC_Date`) %>%
-  mutate(Day = lubridate::date(UTC_Date)) %>%
-  group_by(Country,PID) %>%
-  slice(1,n()) %>%
-  mutate(ud = c(1,-1)) %>%
-  select(Country,Session, Day, PID, ud) %>%
-  full_join(everyday,by = c('PID','Day'))%>%
-  arrange(PID, Day) %>%
-  group_by(PID) %>%
-  mutate(cumcount = cumsum(ud)) %>%
-  group_by(Country, Day) %>%
-  summarize(cumcount = sum(cumcount))
-```
-
-
-<!-- ```{r} -->
-<!-- %>% -->
-<!--   group_by(Session,Country, Day) %>% -->
-<!--   summarize(N = n()) -->
-
-<!-- ggplot(toplot, aes(x=Day, y=N)) + -->
-<!--   geom_bar(stat='identity') -->
-
-<!-- ``` -->
 
 ```{r}
 
@@ -188,9 +153,5 @@ ggplot(count,aes(x=Unique_Name,y=N,fill = Session)) +
   labs(x='',y='Count')
 ```
 
-```{r}
-count <- count %>%
-  pivot_wider(id_cols = c(Country, Session, Run), values_from = N, names_from = Unique_Name)
-```
 
 
