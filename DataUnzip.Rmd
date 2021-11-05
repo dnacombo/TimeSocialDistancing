@@ -40,7 +40,7 @@ dum <- list2env(l, envir = environment())
 zipfiles <- unlist(sapply(ExperimentID,function(f){list.files(datadir,paste0('data_exp_',f,'-v.*.zip'),full.names = T)}))
 
 # create temp dir
-tmpdir <- file.path(datadir,'.tmp')
+tmpdir <- file.path(datadir,'.tmp',paste0(sample(LETTERS,10), collapse = ''))
 # remove any preexisting data
 unlink(tmpdir,recursive=T)
 
@@ -70,7 +70,7 @@ fs <- list.files(tmpdir,full.names = T,recursive = T)
 dum <- sapply(sessiondatadir,dir.create)
 
 for (f in fs) {
-  eid <- str_replace(f,'.*\\.tmp/data_exp_([0-9]{5}).*','\\1')
+  eid <- str_replace(f,'.*\\.tmp/[A-Z]*/data_exp_([0-9]{5}).*','\\1')
   l <- paramsMatch(ExperimentID = eid,experimentIDs = ExperimentIDs)
   # if (grepl('rz24',f)) {stop()}
   if (file.size(f) < 400) {
@@ -89,7 +89,7 @@ for (f in fs) {
     next
   } 
   
-  CurrNode <- filter(allnodes,Session == l$Session,get(ExperimentName) == gsub('.*-([[:alnum:]]{4})','\\1',unique(d$`Tree Node Key`)))
+  CurrNode <- filter(allnodes, Session == l$Session, get(l$ExperimentName) == gsub('.*-([[:alnum:]]{4})', '\\1', unique(d$`Tree Node Key`)))
   if (nrow(CurrNode) > 1) {
     cat(paste('###### Several UniqueNames for', basename(f), '?!? check the google spreadsheet!'))
     dum <- file.remove(f)
