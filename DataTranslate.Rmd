@@ -15,20 +15,20 @@ editor_options:
   chunk_output_type: console
 ---
 
-```{r, message=F}
+```{r setup, message=F}
 source('helpers.R')
 
 gsheet2tbl <- function (url) {
   suppressMessages(read_csv(file=gsheet::gsheet2text(url, format='csv'), col_types = cols(.default = col_character())))
 }
 
-# Doe HADS questionnaire, we need to reorder some of the question labels. The translation sheet is found online.
+# For HADS questionnaire, we need to reorder some of the question labels. The translation sheet is found online.
 HADS_exception <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1KYTDeW_RacsZcPK-fMwKz5rw9dmxKQW4S1L6l8CeJg0/edit#gid=0')
 ```
 
 ### For questionnaires
 
-```{r, warning=F}
+```{r questionnaires, warning=F}
 # we first retrieve useful information:
 # Questions in Tasks/Questionnaires that need to be mapped vs. translated
 QTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDrHFVXpSD13l183FHsXoZu1HqQmz9ZtYROYM/edit#gid=1012544807')
@@ -212,7 +212,7 @@ toto <- ToTranslate %>%
 
 ### For tasks
 
-```{r, warning=F}
+```{r tasks, warning=F}
 # we first retrieve useful information:
 # Questions in Tasks/Questionnaires that need to be mapped vs. translated
 TTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1pDTfJUJnFoUxUbEnOSQrACg0vqSDv2czC52_6fM9Ozc/edit#gid=0')
