@@ -1,0 +1,3 @@
+[submodule "TSDshiny"]
+	path = TSDshiny
+	url = ../TSDshiny.git
