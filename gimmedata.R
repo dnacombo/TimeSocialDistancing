@@ -70,13 +70,13 @@ gimmeRdata <- function(DataDir = getwd(), UniqueName = '[^_]+',
                        Session = 'S[^_]+', Run = '[^_]*', ...,
                        progress = F,
                        fast = T,
-                       verbose = T)
+                       verbose = T,
+                       justlistfiles = F, 
+                       as.list = F)
   {
   
-  humanReadable <- function (x, units = "auto", standard = c("IEC", "SI", "Unix"), 
-                             digits = 1, width = NULL, sep = " ", justify = c("right", 
-                                                                              "left")) 
-  {
+  humanReadable <- function (x, units = "auto", standard = c("IEC", "SI", "Unix"), digits = 1, width = NULL, sep = " ", justify = c("right", "left"))
+    {
     suffix.SI <- c("B", "kB", "MB", "GB", "TB", "PB", "EB", 
                    "ZB", "YB")
     suffix.IEC <- c("B", "KiB", "MiB", "GiB", "TiB", "PiB", 
@@ -139,6 +139,7 @@ gimmeRdata <- function(DataDir = getwd(), UniqueName = '[^_]+',
                format(trimws(retval[2, ]), justify = justify[2]), sep = sep)
   }
   
+  if (as.list) fast = T
   if (length(UniqueName) > 1){
     UniqueName <- paste0('(',paste(UniqueName,collapse = '|'),')')
   }
@@ -149,29 +150,8 @@ gimmeRdata <- function(DataDir = getwd(), UniqueName = '[^_]+',
     Session <- paste0('(',paste(Session,collapse = '|'),')')
   }
   
-  # if (file.exists(file.path(DataDir,'alldata.db'))) {
-  #   con <- dbConnect(SQLite(), file.path(DataDir,'alldata.db'))
-  #   allUniqueNames <- dbListTables(con)[!grepl('^sqlite_',allUniqueNames)]
-  #   
-  #   UniqueNames = allUniqueNames[str_detect(allUniqueNames,UniqueName)]
-  #   dd <- tibble()
-  #   for (UniqueName in UniqueNames) {
-  #     d <- tbl(con, UniqueName)
-  # 
-  #     dd <- bind_rows(dd,
-  #                     d %>%
-  #                       filter(stringr::str_detect(Country, !!Country),
-  #                              stringr::str_detect(Session, !!Session),
-  #                              # stringr::str_detect(Experiment_ID, !!ExperimentID),
-  #                              stringr::str_detect(Run, !!Run),
-  #                              ...) %>%
-  #                       collect()
-  #     )
-  #   }
-  #   return(dd)
-  # }
-  
   fs <- list.files(path = DataDir, pattern = paste0('^TSD_',Country,'_',Session,'_',UniqueName,'.RData'), full.names = T, recursive = F)
+  if (justlistfiles) return(fs)
   if (verbose) {
     cat(paste0('Loading ', humanReadable(sum(file.info(fs)$size)), ' from ', length(fs), ' files.\n'))
   }
@@ -182,18 +162,20 @@ gimmeRdata <- function(DataDir = getwd(), UniqueName = '[^_]+',
     i <- 0
   }
   if (fast) {
+    # first load all as a list then bind rows in one table
     d <- sapply(fs,
                 function(x){
                   if (progress) {
                     i <<- i + 1
                     setTxtProgressBar(pb,i)
                   }
-                  mget(load(x))
+                  get(load(x))%>%
+                    filter(grepl(!!ExperimentID,Experiment_ID),
+                           grepl(!!Run,Run))
                 })
-    D <- bind_rows(d)%>%
-      filter(grepl(!!ExperimentID,Experiment_ID),
-             grepl(!!Run,Run))
+    if (as.list) return(d)
     
+    D <- bind_rows(d)
   } else {
     D <- tibble()
     for (f in fs) {
