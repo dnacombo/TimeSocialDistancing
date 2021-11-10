@@ -1,0 +1,671 @@
+---
+title: "Retrospective duration: Passage of Time"
+params:
+  ExperimentID: null
+  datadir: /home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data
+output:
+  html_notebook:
+    code_folding: hide
+    toc: yes
+  html_document:
+    df_print: paged
+    code_folding: hide
+    toc: yes
+editor_options: 
+  chunk_output_type: inline
+---
+
+```{r, message=F}
+library(tidyverse)
+library(ggbeeswarm)
+library(flextable)
+library(MaxPac)
+library(afex)
+library(emmeans)
+library(effectsize)
+theme_set(theme_minimal())
+
+datadir = params$datadir
+source('helpers.R')
+
+
+```
+
+# Reading data
+
+We read data from the `RetroDuration` questionnaire. Translate responses using QTranslate() (google sheet). Read response to the `initial_RetrospectiveDuration` question. Extract estimated duration since last login as `##:##:##` --\> Hours:Minutes:Seconds. Compute `ClockDuration` as the difference between current time and last login.
+
+```{r, message=F}
+# load(file.path(params$datadir,'Demographics.RData'))
+load(file.path(params$datadir,'Daily_Login_Times.RData'))
+
+# Extracting data:
+
+RetroDuration_PoT <- gimmeRdata(params$datadir, UniqueName = 'RetroDuration') %>%
+  filter(!Country %in% c('UK','CO', 'US')) %>%
+  QTranslate() %>%
+  filter(Question_Key %in% c('Passage_of_Time')) %>%
+  mutate(Date = lubridate::date(Local_Date)) %>%
+  pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
+  # take only the first response if there are several ones
+  group_by(PID,Session,Run,Country) %>%
+  slice(1) %>%
+  add_Demographics() %>%
+  # Using 3 AM to change day
+  mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3)),
+         Passage_of_Time = as.numeric(Passage_of_Time)) %>%
+  left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
+  mutate(Date = lubridate::as_date(Local_Date)) %>%
+  mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
+  select(Country, PID, Session, Run, Local_Date, ClockDuration, Passage_of_Time,
+         Handedness, Sex, Age, Date) %>%
+  mutate(ClockDuration = lubridate::as.duration(ClockDuration)) %>%
+  ungroup() %>%
+  filter(!is.na(Passage_of_Time))
+
+save(RetroDuration_PoT, file = file.path(params$datadir,'RetroDuration_PoT.RData'))
+
+load(file = file.path(params$datadir,'RetroDuration_PoT.RData'))
+```
+
+
+# Outliers detection and clean up
+
+```{r}
+RetroDuration_PoT %>%
+  mutate(across(c(ClockDuration, Passage_of_Time), as.numeric)) %>%
+  pivot_longer(cols = c(ClockDuration,Passage_of_Time)) %>%
+ggplot(aes(x = value, fill = Country)) + 
+  geom_histogram(bins = 50) +
+  facet_wrap(~name ,scales = 'free') +
+  ggtitle('Measure distributions')
+```
+
+Distribution of `ClockDuration` is highly skewed to the left. First capping ClockDuration to decent durations, then removing 5% most extreme values.
+
+Rationale:
+
+-   `ClockDuration` cannot be below 60 s: no questionnaire/task can be completed under this duration, and we want at least one.
+-   5% Largest/smallest `ClockDuration` is systematically discarded. This is done for each Session and Country separately.
+
+We count these
+
+```{r}
+# capped_outliers:
+Duration_max <- 18000
+Duration_min <- 60
+# trim_outliers:
+probs <- c(.025, .975)
+
+OutlierStats <- RetroDuration_PoT %>%
+  group_by(Country,Session) %>%
+  filter(!is.na(ClockDuration), ClockDuration != 0) %>%
+  mutate(capped_outliers = ClockDuration > Duration_max | ClockDuration < Duration_min,
+         ncapped_outliers = sum(capped_outliers, na.rm = T),
+         prop_capped_outliers = ncapped_outliers/n()) %>%
+  filter(!capped_outliers) %>%
+  mutate(trim_outliers = find.outliers(ClockDuration,meth = 'trim', probs = probs),
+         ntrim_outliers = sum(trim_outliers, na.rm = T)) %>%
+  summarize(prop_trim_outliers = unique(ntrim_outliers)/n(),
+            prop_capped_outliers = unique(prop_capped_outliers),
+            ntrim_outliers = unique(ntrim_outliers),
+            ncapped_outliers = unique(ncapped_outliers))
+```
+
+
+```{r}
+OutlierStats %>% group_by() %>%
+  summarize(across(starts_with('n'),list(sum = sum,
+                                         min = min, 
+                                         max = max,
+                                         mean = mean,
+                                         sd = sd))) %>%
+  pivot_longer(starts_with('n')) %>%
+  flextable() %>%
+  colformat_double(big.mark = " ", digits = 3) 
+
+
+
+OutlierStats %>%
+  select(-starts_with('prop')) %>%
+  pivot_wider(names_from = c(Session), values_from = c(ntrim_outliers, ncapped_outliers)) %>%
+  flextable() %>%
+  colformat_double(big.mark = " ", digits = 3) %>%
+  add_header_lines('Number of outliers per Country x Session')
+```
+
+
+```{r}
+OutlierStats %>% group_by() %>%
+  summarize(across(starts_with('prop'),list(min = min, 
+                                            max = max,
+                                            mean = mean,
+                                            sd = sd))) %>%
+  pivot_longer(starts_with('prop')) %>%
+  flextable() %>%
+  colformat_double(big.mark = " ", digits = 3) 
+
+OutlierStats %>%
+  select(-starts_with('n')) %>%
+  pivot_wider(names_from = c(Session), values_from = c(prop_trim_outliers,prop_capped_outliers)) %>%
+  flextable() %>%
+  colformat_double(big.mark = " ", digits = 3) %>%
+  add_header_lines('Proportion of outliers per Country x Session')
+```
+
+
+```{r}
+RetroDuration_PoT_clean <- RetroDuration_PoT %>%
+  filter(!is.na(ClockDuration), ClockDuration != 0)
+nrowsbefore_outliers <- nrow(RetroDuration_PoT_clean)
+RetroDuration_PoT_clean <- RetroDuration_PoT_clean %>%
+  group_by(Country,Session) %>%
+  mutate(outliers = ClockDuration > Duration_max | ClockDuration < Duration_min) %>%
+  filter(!outliers) %>%
+  mutate(outliers = find.outliers(ClockDuration,meth = 'trim', probs = probs)) %>%
+  filter(!outliers) %>%
+  ungroup() %>% select(-outliers)
+nrowsafter_outliers <- nrow(RetroDuration_PoT_clean)
+
+cat('Global proportion of outliers', prop_outliers_global <- 1 - nrowsafter_outliers / nrowsbefore_outliers)
+
+save(RetroDuration_PoT_clean, file = file.path(params$datadir,'RetroDuration_PoT_clean.RData'))
+
+RetroDuration_PoT_clean %>%
+  group_by(Country,Session) %>%
+  mutate(across(c(ClockDuration), as.numeric)) %>%
+  pivot_longer(cols = c(ClockDuration, Passage_of_Time)) %>%
+ggplot(aes(x = value, fill = Country)) + 
+  geom_histogram(bins = 50) +
+  facet_wrap(~name ,scales = 'free')
+```
+
+# Passage of Time
+## Data distribution
+
+```{r}
+load(file = file.path(params$datadir,'RetroDuration_PoT_clean.RData'))
+
+RetroDuration_PoT_clean %>%
+  group_by(Country,Session) %>%
+ggplot(aes(x = Passage_of_Time, fill = Session)) + 
+  geom_histogram(bins = 50)  +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
+
+imagefile = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/SuppFig_distr_PoT.png'
+ggsave(
+  basename(imagefile),
+  plot = last_plot(),
+  device = 'png',
+  width = 200,
+  height = 100,
+  path = dirname(imagefile),
+  units = 'mm',
+  bg = "white"
+)
+
+googledrive::drive_auth()
+googledrive::drive_upload(imagefile,
+                          path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
+                          overwrite = T)
+
+```
+
+
+```{r}
+
+ggplot(RetroDuration_PoT,aes(x=Passage_of_Time,col=Session)) +
+  stat_ecdf() +
+  # facet_grid(Country~Session) +
+  theme_minimal() +
+  ylab('Empirical cumulated density') +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
+  ggtitle('Distributions of Passage_of_Time')
+
+```
+## Subjects Count
+
+```{r}
+
+RetroDuration_PoT %>% group_by(Country, Session) %>%
+  summarize(n = n())
+
+
+```
+
+```{r}
+skimr::skim(RetroDuration_PoT_clean)
+```
+
+
+
+
+```{r}
+ggplot(RetroDuration_PoT_clean,aes(x=Passage_of_Time,y=after_stat(ncount),fill=Session)) +
+  geom_histogram(bins = 20, position='dodge') +
+  ylab('Normalized counts') +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
+
+```
+
+
+# Focus on S1 vs. SC comparison
+
+```{r}
+load(file = file.path(params$datadir,'RetroDuration_PoT_clean.RData'))
+
+tostat <- RetroDuration_PoT_clean %>% 
+  group_by(Country, PID, Session) %>%
+  select(Country,PID, Session, Local_Date, Age, Sex, Handedness, ClockDuration, Passage_of_Time) %>%
+  filter(Session %in% c('S1','SC')) %>%
+  summarize(Local_Date = unique(Local_Date),
+            Age = unique(Age),
+            Passage_of_Time = unique(Passage_of_Time),
+            rPoT = Passage_of_Time / 50) %>%
+  add_SubjectiveConfinementIndices() %>%
+  add_SubjectiveConfinementDuration() %>%
+  add_Mobility() %>%
+  add_StringencyIndex() %>%
+  add_TimeOfDay()
+
+N <- tostat %>%
+  group_by(Session) %>%
+  summarize(N = n())
+```
+
+```{r}
+skimr::skim(ungroup(tostat))
+```
+
+```{r}
+
+ggplot(tostat,aes(x=rPoT,y=after_stat(ncount),fill=Session)) +
+  geom_histogram(bins = 20, position='dodge') +
+  ylab('Normalized counts') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC)
+
+```
+
+```{r}
+ggplot(tostat,aes(y = rPoT, x = Session, col=Session)) +
+  geom_beeswarm(priority = 'random',cex = .3, col = 'grey') +
+  geom_violin(fill = NA, draw_quantiles = .5, na.rm = T) +
+  geom_text(aes(label = paste0('N = ',N)), nudge_x = -.3, y = 1.5, data = N, show.legend = F) +
+  theme_minimal() +
+  ylab('Passage of Time')
+
+ggplot(tostat,aes(x=rPoT,col = Session)) +
+  stat_ecdf() +
+  theme_minimal() + 
+  xlab('Passage of Time') +
+  ylab('Proportion') +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session)
+
+```
+
+## Using Ordinal regression
+
+
+```{r}
+library(ordinal)
+
+# mm <- tostat %>% 
+#   mutate(Passage_of_Time = cut(Passage_of_Time,breaks = seq(0,100,by=20))) %>%
+#  clmm(Passage_of_Time ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  poly(Hour_Of_Day,3) + (1 | PID), data =.)
+
+summary(tostat %>% 
+  mutate(Passage_of_Time = cut(Passage_of_Time,breaks = seq(0,100,by=20))) %>%
+ clm(Passage_of_Time ~  Subjective_Confinement, data =.)
+)
+
+summary(tostat %>% 
+  mutate(Passage_of_Time = cut(Passage_of_Time,breaks = seq(0,100,by=20))) %>%
+ clm(Passage_of_Time ~  poly(Hour_Of_Day,3), data =.)
+)
+
+
+```
+
+```{r}
+m <- tostat %>%
+  mutate(Hour_Of_Day = recode(Hour_Of_Day,`0` = as.integer(24))) %>%
+  mutate(Passage_of_Time = cut(Passage_of_Time,breaks = seq(0,100,by=20))) %>%
+  clm(Passage_of_Time ~ Subjective_Confinement, data =.)
+
+em <- summary(emmeans(m,~ Subjective_Confinement, at = list(Subjective_Confinement = 4:16),mode = 'exc.prob')) %>%
+  mutate(Passage_of_Time = exc.prob * 100,
+         asymp.LCL = asymp.LCL * 100,
+         asymp.UCL = asymp.UCL * 100)
+
+# em2 <- summary(emmeans(m,~ Subjective_Confinement, at = list(Subjective_Confinement = 4:16),mode = 'mean.class')) %>%
+#   mutate(Passage_of_Time = mean.class * 100 / 5)
+
+
+ggplot(tostat %>%
+         group_by(Subjective_Confinement) %>%
+         mutate(meanPassage_of_Time = mean(Passage_of_Time),
+                n = n()),
+       aes(x = Subjective_Confinement, y = Passage_of_Time)) +
+  geom_jitter(width = .1) +
+  geom_line(data = em) +
+  # geom_point(col='green',data = em2) +
+  geom_ribbon(mapping = aes(ymin = asymp.LCL, ymax = asymp.UCL),col = NA, alpha = .2,data = em) +
+  geom_point(aes(y = meanPassage_of_Time), col = 'red',size = 2) +
+  geom_label(aes(y=100,label = n))
+
+```
+```{r}
+m <- tostat %>%
+  mutate(Hour_Of_Day = recode(Hour_Of_Day,`0` = as.integer(24))) %>%
+  mutate(Passage_of_Time = cut(Passage_of_Time,breaks = seq(0,100,by=20))) %>%
+ clmm(Passage_of_Time ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  poly(Hour_Of_Day,3) + (1 | PID), data =.)
+
+summary(m)
+
+em <- summary(emmeans(m,~ Subjective_Confinement, at = list(Subjective_Confinement = 4:16),mode = 'exc.prob')) %>%
+  mutate(Passage_of_Time = exc.prob * 100,
+         asymp.LCL = asymp.LCL * 100,
+         asymp.UCL = asymp.UCL * 100)
+
+# em2 <- summary(emmeans(m,~ Subjective_Confinement, at = list(Subjective_Confinement = 4:16),mode = 'mean.class')) %>%
+#   mutate(Passage_of_Time = mean.class * 100 / 5)
+
+
+ggplot(tostat %>%
+         group_by(Subjective_Confinement) %>%
+         mutate(meanPassage_of_Time = mean(Passage_of_Time),
+                n = n()),
+       aes(x = Subjective_Confinement, y = Passage_of_Time)) +
+  geom_jitter(width = .1) +
+  geom_line(data = em) +
+  # geom_point(col='green',data = em2) +
+  geom_ribbon(mapping = aes(ymin = asymp.LCL, ymax = asymp.UCL),col = NA, alpha = .2,data = em) +
+  geom_point(aes(y = meanPassage_of_Time), col = 'red',size = 2) +
+  geom_label(aes(y=100,label = n))
+
+```
+```{r}
+em <- summary(emmeans(m,~ Hour_Of_Day, at = list(Hour_Of_Day = seq(3,24)),mode = 'exc.prob')) %>%
+  mutate(Passage_of_Time = exc.prob * 100,
+         asymp.LCL = asymp.LCL * 100,
+         asymp.UCL = asymp.UCL * 100)
+
+# em2 <- summary(emmeans(m,~ Subjective_Confinement, at = list(Subjective_Confinement = 4:16),mode = 'mean.class')) %>%
+#   mutate(Passage_of_Time = mean.class * 100 / 5)
+
+
+ggplot(tostat %>%
+         mutate(Hour_Of_Day = recode(Hour_Of_Day,`0` = as.integer(24))) %>%
+         group_by(Hour_Of_Day) %>%
+         mutate(meanPassage_of_Time = mean(Passage_of_Time),
+                n = n()),
+       aes(x = Hour_Of_Day, y = Passage_of_Time)) +
+  geom_jitter(width = .1) +
+  geom_line(data = em) +
+  # geom_point(col='green',data = em2) +
+  geom_ribbon(mapping = aes(ymin = asymp.LCL, ymax = asymp.UCL),col = NA, alpha = .2,data = em) +
+  geom_point(aes(y = meanPassage_of_Time), col = 'red',size = 2) +
+  geom_label(aes(y=100,label = n)) 
+```
+
+
+
+```{r}
+g <- expand_grid(Stringency_Index = seq(35,100,by=20),Passage_of_Time = 50, Mobility_Transit = 0, Age = 40, Hour_Of_Day = 12)
+
+g$Passage_of_Time <- predict(m, newdata = g) * 100
+
+ggplot(g,aes(x=Stringency_Index,y=Passage_of_Time, col = Stringency_Index)) +
+  geom_line() +
+  geom_jitter(data = tostat)
+
+```
+
+```{r}
+g <- expand_grid(Mobility_Transit = seq(-100, 0, by = 20),Passage_of_Time = 50, Stringency_Index = 50, Age = 40, Hour_Of_Day = 12)
+
+g$Passage_of_Time <- predict(m, newdata = g) * 100
+
+ggplot(g,aes(x=Mobility_Transit,y=Passage_of_Time, col = Mobility_Transit)) +
+  geom_line() +
+  geom_jitter(data = tostat)
+
+```
+
+```{r}
+g <- expand_grid(Age = seq(20,85,by=20),Passage_of_Time = 50, Mobility_Transit = 0, Stringency_Index = 50, Hour_Of_Day = 12)
+
+g$Passage_of_Time <- predict(m, newdata = g) * 100
+
+ggplot(g,aes(x=Age,y=Passage_of_Time, col = Age)) +
+  geom_line() +
+  geom_jitter(data = tostat)
+```
+## Using Ordinal regression
+
+With package ordinalCont
+```{r}
+library(ordinalCont)
+
+m <- ocm(Passage_of_Time ~ Stringency_Index + Subjective_Confinement + Mobility_Transit + Age + Hour_Of_Day, data = tostat %>% filter(!is.na(Age)))
+summary(m)
+plot(m)
+```
+
+
+```{r}
+g <- expand_grid(Stringency_Index = seq(35,100,by=20),Passage_of_Time = 50, Mobility_Transit = 0, Age = 40, Hour_Of_Day = 12)
+
+g$Passage_of_Time <- predict(m, newdata = g) * 100
+
+ggplot(g,aes(x=Stringency_Index,y=Passage_of_Time, col = Stringency_Index)) +
+  geom_line() +
+  geom_jitter(data = tostat)
+
+```
+
+```{r}
+g <- expand_grid(Mobility_Transit = seq(-100, 0, by = 20),Passage_of_Time = 50, Stringency_Index = 50, Age = 40, Hour_Of_Day = 12)
+
+g$Passage_of_Time <- predict(m, newdata = g) * 100
+
+ggplot(g,aes(x=Mobility_Transit,y=Passage_of_Time, col = Mobility_Transit)) +
+  geom_line() +
+  geom_jitter(data = tostat)
+
+```
+
+```{r}
+g <- expand_grid(Age = seq(20,85,by=20),Passage_of_Time = 50, Mobility_Transit = 0, Stringency_Index = 50, Hour_Of_Day = 12)
+
+g$Passage_of_Time <- predict(m, newdata = g) * 100
+
+ggplot(g,aes(x=Age,y=Passage_of_Time, col = Age)) +
+  geom_line() +
+  geom_jitter(data = tostat)
+```
+
+## Using dichotomized values for Passage of time
+
+```{r}
+nutostat <- tostat %>%
+  filter(Passage_of_Time != 50) %>%
+  mutate(Faster = Passage_of_Time > 50)
+
+#  + Mobility_Transit + Age + Hour_Of_Day # %>% filter(!is.na(Age))
+
+m <- glm(Faster ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, family = 'binomial', data = nutostat)
+plot(m)
+summary(m)
+anova(m, test = 'F')
+
+```
+## Using Mixed effects ordered logistic reg
+
+```{r}
+
+nutostat <- tostat %>% ungroup() %>%
+  filter(Passage_of_Time != 50) %>%
+  mutate(Faster = Passage_of_Time > 50, 
+         PoT_cut = as.ordered(cut(Passage_of_Time,breaks = seq(0,100,by = 20), ordered_result = T, labels = F)))  %>% 
+  remove_missing(na.rm = T, vars = c('Stringency_Index', 'Mobility_Transit', 'Age', 'Hour_Of_Day', 'PoT_cut'))
+
+# #  + Mobility_Transit + Age + Hour_Of_Day # %>% filter(!is.na(Age))
+# 
+# m <- polmer(PoT_cut ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day + (1|PID), data = nutostat)
+# plot(m)
+# summary(m)
+# anova(m, test = 'LRT')
+# 
+# m <- MASS::polr(PoT_cut ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, data = nutostat)
+# # plot(m)
+# summary(m)
+# # anova(m, test = 'Chisq')
+
+library(ordinal)
+m <- clm(PoT_cut ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, data = nutostat)
+summary(m)
+summary(emmeans(m,~Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, at = list(Stringency_Index = seq(25, 100, by=5)), mode = 'exc.prob')) %>%
+  ggplot(aes(x = Stringency_Index, y=exc.prob*100, col = Stringency_Index)) +
+  geom_point(data = nutostat, aes(y=Passage_of_Time)) +
+  # geom_ribbon(aes(ymin = asymp.LCL, ymax = asymp.UCL)) +
+  geom_line(col = 'black') +
+  geom_smooth(data = nutostat,aes(y=Passage_of_Time))
+
+mm <- clmm(PoT_cut ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day + (1| PID), data = nutostat)
+summary(mm)
+```
+
+
+<!-- # Old stuff... -->
+<!-- ## Extracting Subjective confinement duration from Confinement Tracker -->
+
+
+<!-- ```{r} -->
+<!-- ConfDuration_SubjConfDist <- gimmeRdata('TSDshiny/data/','ConfinementTrack')%>% -->
+<!--   QTranslate() %>% -->
+<!--   add_StringencyIndex() %>% -->
+<!--   add_SubjectiveConfinementIndices() -->
+<!-- ``` -->
+
+<!-- Taking only numeric values below 400 days entered in ConfDuration. Removing NA values for both SubjConfinementDistance and ConfDuration. -->
+
+<!-- ```{r} -->
+<!-- d <- ConfDuration_SubjConfDist %>% -->
+<!--   filter(Question_Key %in% c('ConfDuration', 'SubjConfinementDistance')) %>% -->
+<!--   pivot_wider( -->
+<!--     id_cols = c('Country', 'Session', 'Run', 'PID', Local_Date, Stringency_Index, Subjective_Confinement), -->
+<!--     names_from = Question_Key, -->
+<!--     values_from = Response -->
+<!--   ) %>% -->
+<!--   select(-Local_Date) %>% -->
+<!--   mutate(across(c(ConfDuration, SubjConfinementDistance), ~ suppressWarnings(as.numeric(.x)))) %>% -->
+<!--   filter(!is.na(SubjConfinementDistance),  -->
+<!--          !is.na(ConfDuration), -->
+<!--          ConfDuration < 400) -->
+<!-- ``` -->
+<!-- First fitting data with a lm -->
+
+<!-- ```{r} -->
+<!-- tostat <- d -->
+
+<!-- m <- lm(SubjConfinementDistance ~ ConfDuration, data = tostat) -->
+
+<!-- summary(m) -->
+<!-- ``` -->
+
+<!-- Problem with diagnostics -->
+<!-- ```{r} -->
+<!-- plot(m) -->
+<!-- ``` -->
+
+
+<!-- ```{r} -->
+<!-- ggplot(tostat, aes(x=ConfDuration, y=SubjConfinementDistance, col = ConfDuration)) + -->
+<!--   geom_point() +  -->
+<!--   geom_smooth(method = 'lm') -->
+<!-- ``` -->
+
+<!-- So trying with `ordinalCont` -->
+<!-- ```{r} -->
+<!-- m <- ocm(SubjConfinementDistance ~ ConfDuration, data = tostat) -->
+
+<!-- summary(m) -->
+
+<!-- plot(m) -->
+
+<!-- g <- expand_grid(ConfDuration = seq(0,250,by=1), SubjConfinementDistance = 50) -->
+
+<!-- g$SubjConfinementDistance <- predict(m, newdata = g) * 100 -->
+
+<!-- ggplot(g,aes(x=ConfDuration,y=SubjConfinementDistance, col = ConfDuration)) + -->
+<!--   geom_line() + -->
+<!--   geom_jitter(data = tostat) -->
+
+<!-- ``` -->
+<!-- So we try with gam -->
+<!-- ```{r} -->
+
+<!-- ggplot(tostat, aes(x=ConfDuration, y=SubjConfinementDistance, col = ConfDuration)) + -->
+<!--   geom_point() +  -->
+<!--   geom_smooth() -->
+<!-- ``` -->
+<!-- ### color = stringency index -->
+
+
+<!-- ```{r} -->
+<!-- ggplot(tostat, aes(x=ConfDuration, y=SubjConfinementDistance, col = Stringency_Index)) + -->
+<!--   geom_point(alpha = .5) +  -->
+<!--   geom_smooth() -->
+
+<!-- ggplot(tostat, aes(x=ConfDuration, y=SubjConfinementDistance, col = Subjective_Confinement)) + -->
+<!--   geom_point(alpha = .5) +  -->
+<!--   geom_smooth() -->
+
+<!-- ``` -->
+
+<!-- So trying again `ordinalCont` -->
+<!-- ```{r} -->
+
+<!-- m <- mgcv::gam(cbind(SubjConfinementDistance, 100) ~ s(ConfDuration) + s(Stringency_Index) + s(Subjective_Confinement), data = tostat, family = binomial()) -->
+<!-- plot(m) -->
+<!-- summary(m) -->
+
+<!-- p <- function(column) { -->
+
+<!-- em <- summary(emmeans(m, c('ConfDuration', column), at = list(ConfDuration = seq(0,max(tostat$ConfDuration), length.out =20), Stringency_Index = seq(20,100, length.out = 20), Subjective_Confinement = seq(4,16, length.out = 20))), type = 'response') -->
+
+<!-- ggplot(em,aes_string(x='ConfDuration',y='prob', col = column, group = column)) + -->
+<!--   geom_ribbon(aes(ymin = lower.CL, ymax = upper.CL), col = NA,alpha = .1) +  -->
+<!--   geom_line() + -->
+<!--   geom_point(aes(y = SubjConfinementDistance/100),alpha = .5, data = tostat) + -->
+<!--   ylab('SubjConfinementDistance') -->
+<!-- } -->
+
+<!-- p('Stringency_Index') -->
+<!-- p('Subjective_Confinement') -->
+
+<!-- ``` -->
+<!-- ```{r} -->
+<!-- d <- gimmeRdata('TSDshiny/data', '1back', Country = 'AR') -->
+
+<!-- d %>% add_SubjectiveConfinementDuration() -->
+
+<!-- ``` -->
+
+<!-- #### rPoT ~ Stringency & Time_of_Day -->
+
+<!-- ```{r} -->
+
+<!-- m <- lmer(rPoT ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3) +  (1 | PID), data = tostat ) -->
+<!-- summary(m) -->
+<!-- anova(m) -->
+<!-- effectsize::eta_squared(m) -->
+
+<!-- ``` -->
+
