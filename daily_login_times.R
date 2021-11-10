@@ -2,14 +2,14 @@ datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDi
 
 source('helpers.R')
 
-alldata <- gimmeRdata(DataDir = datadir, fast = T, progress = T, as.list = T)
+d <- gimmeRdata(DataDir = datadir, fast = T, progress = T, as.list = T)
 
-for (i in 1:length(alldata)) {
-  alldata[[i]] <- alldata[[i]] %>%
+for (i in 1:length(d)) {
+  d[[i]] <- d[[i]] %>%
     filter({if ("Trial_Number" %in% names(.)) {Trial_Number == 'BEGIN TASK'} else {Question_Key == 'BEGIN QUESTIONNAIRE'}})
 }
 
-daily_login_times <- bind_rows(alldata) %>%
+daily_login_times <- bind_rows(d) %>%
   unite(BEGIN,Trial_Number,Question_Key, na.rm = T) %>%
   select(PID, Session, Unique_Name, Run, BEGIN, Local_Date) %>%
   mutate(Date = lubridate::date(Local_Date)) %>%
