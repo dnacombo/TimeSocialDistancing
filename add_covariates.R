@@ -11,7 +11,8 @@ add_StringencyIndex <- function(d)
                       CO = 'Colombia',
                       GR = 'Greece', 
                       IN = 'India',
-                      JP = 'Japan'
+                      JP = 'Japan', 
+                      US = 'United States'
   )
   
   stringencyIndex <- read_csv('TSDshiny/data/covid-stringency-index.csv',
@@ -49,8 +50,7 @@ add_SubjectiveConfinementDuration <- function(d){
   }
   load(file=file.path('TSDshiny/data',"SubjectiveConfinementDuration.RData"))
   tmp <- d %>% left_join(SubjectiveConfinementDuration) %>%
-    mutate(Local_Date = lubridate::date(Local_Date),
-           is1 = Local_Date < Local_Date_CT2,
+    mutate(is1 = Local_Date < Local_Date_CT2,
            is2 = Local_Date >= Local_Date_CT2,
            is3 = Local_Date >= Local_Date_CT3,
            is4 = Local_Date >= Local_Date_CT4) %>%
@@ -98,7 +98,8 @@ add_Mobility <- function(d){
                       CO = 'Colombia',
                       GR = 'Greece', 
                       IN = 'India',
-                      JP = 'Japan'
+                      JP = 'Japan', 
+                      US = 'United States'
   )
   
   # mobility <- read_csv('TSDshiny/data/Global_Mobility_Report.csv', col_types = cols(
