@@ -1,6 +1,6 @@
 source('helpers.R')
-datadir <- 'TSDshiny/data'
-alldata <- gimmeRdata(DataDir = datadir, fast = T, progress = T, as.list = T)
+
+alldata <- gimmeRdata(DataDir = dirBlursday, fast = T, progress = T, as.list = T)
 
 d <- list()
 for (i in 1:length(alldata)) {

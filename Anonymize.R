@@ -1,12 +1,10 @@
-datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
-
 source('helpers.R')
 
 
 # hide all Welcome questionnaires
 # (contain emails and publicIDs)
 
-fs <- list.files(path = datadir, pattern = '^TSD_.*_Welcome.RData', recursive = T, full.names = T)
+fs <- list.files(path = dirBlursday, pattern = '^TSD_.*_Welcome.RData', recursive = T, full.names = T)
 tmp <- sapply(fs, file.hide)
   
 
@@ -17,13 +15,13 @@ tmp <- sapply(fs, file.hide)
 # for all hidden files found, check if original (not hidden) exists
 # if also original exists, then delete hidden file
 # if no original exists, then rename hidden file to original
-fs <- list.files(path = datadir, pattern = '^\\.TSD_.*_Demographics.RData', recursive = T, full.names = T, all.files = T)
+fs <- list.files(path = dirBlursday, pattern = '^\\.TSD_.*_Demographics.RData', recursive = T, full.names = T, all.files = T)
 tmp <- sapply(fs, file.unhide)
 
 library(lubridate)
-demo <- gimmeRdata(DataDir = datadir, UniqueName = 'Demographics')
+demo <- gimmeRdata(DataDir = dirBlursday, UniqueName = 'Demographics')
 
-fs <- list.files(path = datadir, pattern = '^TSD_.*_Demographics.RData', recursive = T, full.names = T)
+fs <- list.files(path = dirBlursday, pattern = '^TSD_.*_Demographics.RData', recursive = T, full.names = T)
 tmp <- sapply(fs, file.hide)
 
 gsheet2tbl <- function (url) {
@@ -91,7 +89,7 @@ Demographics <- Demo %>%
   select(-`Age-month`, -`Age-year`, -`sex-quantised`, -DOB) %>%
   filter(Age >= 18)
 
-save(Demographics,file = file.path(datadir,'Demographics.RData'))
+save(Demographics,file = file.path(dirBlursday,'Demographics.RData'))
 
 
 

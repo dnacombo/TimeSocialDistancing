@@ -2,7 +2,6 @@
 title: "Retrospective duration: Duration Estimation"
 params:
   ExperimentID: null
-  datadir: /home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data
 output:
   html_notebook:
     code_folding: hide
@@ -44,45 +43,45 @@ Compute :
 -   rEstimationError = EstimationError / ClockDuration
 
 ```{r, message=F}
-# load(file.path(params$datadir,'Demographics.RData'))
-load(file.path(params$datadir,'Daily_Login_Times.RData'))
+
+load(file.path(dirBlursday,'Daily_Login_Times.RData'))
 
 # Extracting data:
 
-# RetroDuration <- gimmeRdata(params$datadir, UniqueName = 'RetroDuration') %>%
-#   filter(!Country %in% c('UK','CO', 'US')) %>%
-#   QTranslate() %>%
-#   filter(Question_Key %in% c('initial_RetrospectiveDuration')) %>%
-#   mutate(Date = lubridate::date(Local_Date)) %>%
-#   pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
-#   # take only the first response if there are several ones
-#   group_by(PID,Session,Run,Country) %>%
-#   slice(1) %>%
-#   add_Demographics() %>%
-#   # For EstimatedDuration
-#   # Using 3 AM to change day
-#   mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3))) %>%
-#   left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
-#   mutate(Date = lubridate::as_date(Local_Date)) %>%
-#   mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
-#   select(Country, PID, Session, Run, Local_Date, ClockDuration, initial_RetrospectiveDuration,
-#          Handedness, Sex, Age, Date) %>%
-#   mutate(M = str_match(initial_RetrospectiveDuration,
-#                        '^.*?(\\d+).*?[:：].*?(\\d+).*?[:：].*?(\\d+).*?$'),
-#          h = suppressWarnings(as.numeric(M[,2])),
-#          m = suppressWarnings(as.numeric(M[,3])),
-#          s = suppressWarnings(as.numeric(M[,4])),
-#          EstimatedDuration = lubridate::duration(hour = h, minute = m, second = s),
-#          ClockDuration = lubridate::as.duration(ClockDuration),
-#          rEstimatedDuration = EstimatedDuration / ClockDuration,
-#          EstimationError = EstimatedDuration - ClockDuration,
-#          rEstimationError = EstimationError / ClockDuration) %>%
-#   select(-M) %>% # ,-h,-m,-s
-#   ungroup()
-# 
-# save(RetroDuration, file = file.path(params$datadir,'RetroDuration.RData'))
+RetroDuration <- gimmeRdata(dirBlursday, UniqueName = 'RetroDuration') %>%
+  filter(!Country %in% c('UK','CO', 'US')) %>%
+  QTranslate() %>%
+  filter(Question_Key %in% c('initial_RetrospectiveDuration')) %>%
+  mutate(Date = lubridate::date(Local_Date)) %>%
+  pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
+  # take only the first response if there are several ones
+  group_by(PID,Session,Run,Country) %>%
+  slice(1) %>%
+  add_Demographics() %>%
+  # For EstimatedDuration
+  # Using 3 AM to change day
+  mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3))) %>%
+  left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
+  mutate(Date = lubridate::as_date(Local_Date)) %>%
+  mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
+  select(Country, PID, Session, Run, Local_Date, ClockDuration, initial_RetrospectiveDuration,
+         Handedness, Sex, Age, Date) %>%
+  mutate(M = str_match(initial_RetrospectiveDuration,
+                       '^.*?(\\d+).*?[:：].*?(\\d+).*?[:：].*?(\\d+).*?$'),
+         h = suppressWarnings(as.numeric(M[,2])),
+         m = suppressWarnings(as.numeric(M[,3])),
+         s = suppressWarnings(as.numeric(M[,4])),
+         EstimatedDuration = lubridate::duration(hour = h, minute = m, second = s),
+         ClockDuration = lubridate::as.duration(ClockDuration),
+         rEstimatedDuration = EstimatedDuration / ClockDuration,
+         EstimationError = EstimatedDuration - ClockDuration,
+         rEstimationError = EstimationError / ClockDuration) %>%
+  select(-M) %>% # ,-h,-m,-s
+  ungroup()
 
-load(file = file.path(params$datadir,'RetroDuration.RData'))
+save(RetroDuration, file = file.path(dirBlursday,'RetroDuration.RData'))
+
+load(file = file.path(dirBlursday,'RetroDuration.RData'))
 ```
 
 ```{r}
@@ -194,7 +193,7 @@ nrowsafter_outliers <- nrow(RetroDuration_clean)
 
 cat('Global proportion of outliers', prop_outliers_global <- 1 - nrowsafter_outliers / nrowsbefore_outliers)
 
-save(RetroDuration_clean, file = file.path(params$datadir,'RetroDuration_clean.RData'))
+save(RetroDuration_clean, file = file.path(dirBlursday,'RetroDuration_clean.RData'))
 
 RetroDuration_clean %>%
   group_by(Country,Session) %>%
@@ -204,6 +203,7 @@ ggplot(aes(x = value, fill = Country)) +
   geom_histogram(bins = 50) +
   facet_wrap(~name ,scales = 'free')
 ```
+
 ```{r}
 lseq <- function(from,to, length.out) {
   exp(seq(log(from), log(to), length.out = length.out))
@@ -291,6 +291,8 @@ skimr::skim(RetroDuration_clean)
 ## Focus on S1 vs. SC comparison
 
 ```{r}
+load(file = file.path(dirBlursday, 'RetroDuration_clean.RData'))
+
 tostat <- RetroDuration_clean %>% 
   group_by(Country, PID, Session) %>%
   select(Country,PID, Session, Local_Date,EstimatedDuration, rEstimatedDuration, EstimationError, Age, Sex, Handedness, ClockDuration) %>%
@@ -548,6 +550,8 @@ emmeans(m,~ClockDuration + Hour_Of_Day,at = list(ClockDuration = seq(min(tostat$
 ## Focus on countries that have S1 and SC (FR, IT, JP)
 
 ```{r}
+load(file = file.path(dirBlursday, 'RetroDuration_clean.RData'))
+
 tostat <- RetroDuration_clean %>% 
   group_by(Country, PID, Session) %>%
   select(Country,PID, Session, Local_Date,EstimatedDuration, rEstimatedDuration, EstimationError, Age, Sex, Handedness, ClockDuration) %>%
@@ -810,6 +814,7 @@ emmeans(m,~ClockDuration + Hour_Of_Day,at = list(ClockDuration = seq(min(tostat$
 
 We first insert all covariates in the data, looking at all sessions, now.
 ```{r}
+load(file = file.path(dirBlursday, 'RetroDuration_clean.RData'))
 tostat <- RetroDuration_clean %>% 
   group_by(Country, PID, Session) %>%
   select(Country,PID, Session, Local_Date, EstimatedDuration, rEstimatedDuration, EstimationError, Age, Sex, Handedness, ClockDuration) %>%

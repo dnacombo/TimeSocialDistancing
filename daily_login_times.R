@@ -1,8 +1,6 @@
-datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
-
 source('helpers.R')
 
-d <- gimmeRdata(DataDir = datadir, fast = T, progress = T, as.list = T)
+d <- gimmeRdata(DataDir = dirBlursday, fast = T, progress = T, as.list = T)
 
 for (i in 1:length(d)) {
   d[[i]] <- d[[i]] %>%
@@ -17,4 +15,4 @@ daily_login_times <- bind_rows(d) %>%
   arrange(Local_Date) %>%
   slice(1)
 
-save(daily_login_times,file = file.path(datadir,'Daily_Login_Times.RData'))
+save(daily_login_times,file = file.path(dirBlursday,'Daily_Login_Times.RData'))

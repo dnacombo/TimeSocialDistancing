@@ -5,15 +5,10 @@ Country = NULL #'FR'
 ExperimentName = Country
 UniqueName = NULL
 
-datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-outdir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
-
-
-
 l <- as_tibble(paramsMatch(experimentIDs = ExperimentIDs, Country = Country))
 
 # list all files
-tbs <- list.files(datadir,'^(S[^_]*)_([^_]*)_?r?([^\\.]*)?.csv', recursive = T) %>%
+tbs <- list.files(dirData,'^(S[^_]*)_([^_]*)_?r?([^\\.]*)?.csv', recursive = T) %>%
   tibble(filename = .) %>%
   rowwise() %>%
   mutate(S = str_match_all(basename(filename),'(S[^_]*)_([^_]*)_?r?([^\\.]*)?.csv'),
@@ -35,7 +30,7 @@ if (!is.null(UniqueName)) {
 for (tb in unique(tbs$UniqueName)) {
   cat('\n')
   cat(tb,sep = '\n')
-  ddd <- gimmedata(DataDir = datadir, UniqueName = tb, ExperimentID = paste0(l$ExperimentID,collapse = '|')) %>%
+  ddd <- gimmedata(DataDir = dirData, UniqueName = tb, ExperimentID = paste0(l$ExperimentID,collapse = '|')) %>%
     mutate(Country = recode(`Experiment ID`, !!!l$Country)) %>%
     janitor::clean_names(case = "parsed")
   if (tb == 'Metacog') {
@@ -54,7 +49,7 @@ for (tb in unique(tbs$UniqueName)) {
       d <- filter(dd, Session == S) %>%
         mutate(Country_Name = recode(Country,!!!countryMapping)) %>%
         select(Country_Name, Country, Session, Unique_Name, Run, PID, everything())
-      save(d,file = file.path(outdir,paste0('TSD_',co,'_',S,'_',tb,'.RData')), compress = T)
+      save(d,file = file.path(dirBlursday,paste0('TSD_',co,'_',S,'_',tb,'.RData')), compress = T)
     } 
   }
 }
@@ -64,7 +59,7 @@ for (tb in unique(tbs$UniqueName)) {
 # library(DBI)
 # library(RSQLite)
 # 
-# fs <- list.files(outdir,'TSD_[^_]+_[^_]+_[^\\.]+\\.RData', full.names = T)
+# fs <- list.files(dirBlursday,'TSD_[^_]+_[^_]+_[^\\.]+\\.RData', full.names = T)
 # allUniqueNames <- unique(str_match(string = fs, pattern = 'TSD_[^_]+_[^_]+_([^\\.]+)\\.RData')[,2])
 # 
 # con <- dbConnect(SQLite(), "alldata.db")
@@ -73,7 +68,7 @@ for (tb in unique(tbs$UniqueName)) {
 # i <- 0
 # for (tb in allUniqueNames) {
 #   # cat(tb, sep = '\n')
-#   d <- gimmeRdata(DataDir = outdir, UniqueName = tb, verbose = F)
+#   d <- gimmeRdata(DataDir = dirBlursday, UniqueName = tb, verbose = F)
 #   copy_to(dest = con,df = d,name = tb, temporary = F, overwrite = T, indexes = list('Country','Participant_Private_ID','Experiment_ID','PID','Session','Unique_Name','Run','Event_index'))
 #   i <- i + 1
 #   setTxtProgressBar(pb,i)
@@ -103,7 +98,7 @@ for (tb in unique(tbs$UniqueName)) {
 #   d <- load(file = paste0(tb,'.RData'))
 # )
 # system.time(
-# d <- gimmedata(DataDir = datadir, UniqueName = tb) %>%
+# d <- gimmedata(DataDir = dirData, UniqueName = tb) %>%
 #   mutate(Country = recode(`Experiment ID`, !!!l$Country)) %>%
 #   janitor::clean_names(case = "parsed")
 # )

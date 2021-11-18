@@ -1,6 +1,6 @@
 source('helpers.R')
 
-SubjectiveConfinementIndices <-  gimmeRdata('TSDshiny/data',UniqueName = 'UCLA') %>%
+SubjectiveConfinementIndices <-  gimmeRdata(dirBlursday, UniqueName = 'UCLA') %>%
   QTranslate() %>%
   filter(!`Question_Key`%in%c("BEGIN QUESTIONNAIRE","END QUESTIONNAIRE")) %>%
   pivot_wider(id_cols = c(Country, Session, Run, PID),names_from=`Question_Key`,values_from=Response, values_fn = first) %>%
@@ -9,4 +9,4 @@ SubjectiveConfinementIndices <-  gimmeRdata('TSDshiny/data',UniqueName = 'UCLA')
          Subjective_Confinement = Reported_Loneliness + Felt_Loneliness) %>%
   select(Country, Session, PID, Reported_Loneliness, Felt_Loneliness, Subjective_Confinement)
 
-save(SubjectiveConfinementIndices, file=file.path('TSDshiny/data',"SubjectiveConfinementIndices.RData"))
+save(SubjectiveConfinementIndices, file=file.path(dirBlursday,"SubjectiveConfinementIndices.RData"))

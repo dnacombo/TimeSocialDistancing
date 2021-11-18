@@ -2,7 +2,6 @@
 title: "Extracting data for Questionnaire ASQ"
 params:
   ExperimentID: [16271, 16272]
-  datadir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA
 output:
   html_document:
     df_print: paged
@@ -22,12 +21,12 @@ source('helpers.R')
 
 ```{r, message=F}
 
-datadir = file.path(params$datadir,paste0('data_exp_', paste(ExperimentID,collapse='-'), '_', ExperimentName[1]))
+datadir = file.path(dataDir,paste0('data_exp_', paste(ExperimentID,collapse='-'), '_', ExperimentName[1]))
 dir.create(outdir,showWarnings = F)
 
 datafile <- list.files(datadir,'S1_ASQ.csv',full.names = T)
 
-tmpdir <- file.path(params$datadir,'.tmp')
+tmpdir <- file.path(dirData,'.tmp')
 unlink(tmpdir,recursive=T)
 
 if (is_empty(datafile)){

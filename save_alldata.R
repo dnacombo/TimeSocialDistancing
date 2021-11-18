@@ -1,5 +1,6 @@
 source('helpers.R')
 
-alldata <- gimmeRdata('TSDshiny/data/', fast = T)
+alldata <- gimmeRdata(dirBlursday, fast = T, progress = T)
 
-save(alldata,file = 'AllData.RData')
+
+save(alldata,file = file.path(dirData,'AllData.RData'), safe = T)

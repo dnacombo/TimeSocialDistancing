@@ -2,13 +2,12 @@ source('helpers.R')
 
 library(lubridate)
 
-datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 TimeTranslate <- gsheet::gsheet2tbl('https://docs.google.com/spreadsheets/d/1jLOOtz1WV2fgbJDkD26V0TZ3Yq6u9FVOYPq54PvGre4/edit#gid=0') 
 # ci-dessous pour intégrer une colonne "Country" dans la table data
 l <- paramsMatch(experimentIDs = ExperimentIDs)
 names(l$Country) <- l$ExperimentID
 
-data <- gimmedata(DataDir = datadir,UniqueName = "ConfinementTrack") %>%
+data <- gimmedata(DataDir = dirData,UniqueName = "ConfinementTrack") %>%
   mutate(Country = recode(`Experiment ID`,!!!l$Country),
          .before = Session)
 

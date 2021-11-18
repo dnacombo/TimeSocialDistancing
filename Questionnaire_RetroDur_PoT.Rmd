@@ -2,7 +2,6 @@
 title: "Retrospective duration: Passage of Time"
 params:
   ExperimentID: null
-  datadir: /home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data
 output:
   html_notebook:
     code_folding: hide
@@ -36,12 +35,12 @@ source('helpers.R')
 We read data from the `RetroDuration` questionnaire. Translate responses using QTranslate() (google sheet). Read response to the `initial_RetrospectiveDuration` question. Extract estimated duration since last login as `##:##:##` --\> Hours:Minutes:Seconds. Compute `ClockDuration` as the difference between current time and last login.
 
 ```{r, message=F}
-# load(file.path(params$datadir,'Demographics.RData'))
-load(file.path(params$datadir,'Daily_Login_Times.RData'))
+# load(file.path(dirBlursday,'Demographics.RData'))
+load(file.path(dirBlursday,'Daily_Login_Times.RData'))
 
 # Extracting data:
 
-RetroDuration_PoT <- gimmeRdata(params$datadir, UniqueName = 'RetroDuration') %>%
+RetroDuration_PoT <- gimmeRdata(dirBlursday, UniqueName = 'RetroDuration') %>%
   filter(!Country %in% c('UK','CO', 'US')) %>%
   QTranslate() %>%
   filter(Question_Key %in% c('Passage_of_Time')) %>%
@@ -63,9 +62,9 @@ RetroDuration_PoT <- gimmeRdata(params$datadir, UniqueName = 'RetroDuration') %>
   ungroup() %>%
   filter(!is.na(Passage_of_Time))
 
-save(RetroDuration_PoT, file = file.path(params$datadir,'RetroDuration_PoT.RData'))
+save(RetroDuration_PoT, file = file.path(dirBlursday,'RetroDuration_PoT.RData'))
 
-load(file = file.path(params$datadir,'RetroDuration_PoT.RData'))
+load(file = file.path(dirBlursday,'RetroDuration_PoT.RData'))
 ```
 
 
@@ -169,7 +168,7 @@ nrowsafter_outliers <- nrow(RetroDuration_PoT_clean)
 
 cat('Global proportion of outliers', prop_outliers_global <- 1 - nrowsafter_outliers / nrowsbefore_outliers)
 
-save(RetroDuration_PoT_clean, file = file.path(params$datadir,'RetroDuration_PoT_clean.RData'))
+save(RetroDuration_PoT_clean, file = file.path(dirBlursday,'RetroDuration_PoT_clean.RData'))
 
 RetroDuration_PoT_clean %>%
   group_by(Country,Session) %>%
@@ -184,7 +183,7 @@ ggplot(aes(x = value, fill = Country)) +
 ## Data distribution
 
 ```{r}
-load(file = file.path(params$datadir,'RetroDuration_PoT_clean.RData'))
+load(file = file.path(dirBlursday,'RetroDuration_PoT_clean.RData'))
 
 RetroDuration_PoT_clean %>%
   group_by(Country,Session) %>%
@@ -255,7 +254,7 @@ ggplot(RetroDuration_PoT_clean,aes(x=Passage_of_Time,y=after_stat(ncount),fill=S
 # Focus on S1 vs. SC comparison
 
 ```{r}
-load(file = file.path(params$datadir,'RetroDuration_PoT_clean.RData'))
+load(file = file.path(dirBlursday,'RetroDuration_PoT_clean.RData'))
 
 tostat <- RetroDuration_PoT_clean %>% 
   group_by(Country, PID, Session) %>%
@@ -266,7 +265,6 @@ tostat <- RetroDuration_PoT_clean %>%
             Passage_of_Time = unique(Passage_of_Time),
             rPoT = Passage_of_Time / 50) %>%
   add_SubjectiveConfinementIndices() %>%
-  add_SubjectiveConfinementDuration() %>%
   add_Mobility() %>%
   add_StringencyIndex() %>%
   add_TimeOfDay()

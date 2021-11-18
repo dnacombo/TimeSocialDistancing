@@ -1,6 +1,8 @@
 # Demographics plots
+source('helpers.R')
 
-load('TSDshiny/data/Demographics.RData')
+dirFigures <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures'
+load(file.path(dirBlursday,'Demographics.RData'))
 Demographics <- Demographics %>%
   filter(Country != 'US')
 # Sex proportions
@@ -29,7 +31,7 @@ ggsave(
   device = 'eps',
   width = 200,
   height = 100,
-  path = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures',
+  path = dirFigures,
   units = 'mm'
 )
 
@@ -53,7 +55,7 @@ ggsave(
   device = 'eps',
   width = 200,
   height = 100,
-  path = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures',
+  path = dirFigures,
   units = 'mm'
 )
 

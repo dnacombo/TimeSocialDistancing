@@ -2,23 +2,9 @@ library(tidyverse)
 options(dplyr.summarise.inform=F)
 options(gargle_oauth_email = 'maximilien.chaumon@gmail.com')
 
-if (!exists('datadir')){
-  if (!exists('params')) {
-    datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-  } else {
-    if (is.null(params$datadir)) {
-      datadir <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-    } else {
-      datadir <- params$datadir
-    }
-  }
-}
+dirData <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+dirBlursday <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
 
-# SessionColorPalette <- c(S1 = '#F862A0',
-#   S2 = '#6BAED6',
-#   S3 = '#BDD7E7',
-#   S4 = '#FCC0D9',
-#   SC = '#585858')
 Palette_Session <- c(S1 = '#FF73AD',
                          S2 = '#6BD685',
                          S3 = '#BCE4C6',
@@ -116,7 +102,7 @@ TTranslate <- function(orig) {
     select(-(Question:last_col()))
 }
 
-UpdateTables <- function(datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', wherefrom='online') {
+UpdateTables <- function(datadir = dirData, wherefrom='online') {
   
   f <- file.path(datadir,'NodeKeys.csv')
   
@@ -191,7 +177,7 @@ UpdateTables <- function(datadir = '/home/maximilien.chaumon/ownCloud/Lab/00-Pro
   return(list(allnodes = allnodes, ExperimentIDs = ExperimentIDs))
   
 }
-list2env(UpdateTables(datadir), envir = globalenv())
+list2env(UpdateTables(dirData), envir = globalenv())
 
 
 Name2ID <- function(ExperimentName, ExperimentIDs) {
@@ -269,7 +255,7 @@ params2dir <- function(params) {
     group_split()
   d <- character()
   for (p in ps) {
-    d <- c(d,file.path(params$datadir,paste0('data_exp_', paste0(unique(p$ExperimentID),collapse = '-'),'_',p$ExperimentName[1],'_Session',unique(p$Session))))
+    d <- c(d,file.path(dirData,paste0('data_exp_', paste0(unique(p$ExperimentID),collapse = '-'),'_',p$ExperimentName[1],'_Session',unique(p$Session))))
   }
   return(d)
 }

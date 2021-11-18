@@ -5,7 +5,6 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
 output:
   html_document:
     code_folding: hide
@@ -29,14 +28,13 @@ Country = 'CA'
 ExperimentName = 'CA-FR'
 
 l <- paramsMatch(Country=Country,experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
 
-sessiondatadir <- tibble(fname = list.files(l$datadir,paste0('data_exp_[^\\.]+Session.*$'),include.dirs = T) ) %>%
+sessiondatadir <- tibble(fname = list.files(dirData,paste0('data_exp_[^\\.]+Session.*$'),include.dirs = T) ) %>%
   filter(! str_detect(fname,'processed'),
          str_detect(fname,paste0('_',ExperimentName,'_')))
 
 
-fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(l$datadir,x),pattern='S._Welcome.csv|S4_ParticipantTracker.csv',full.names = T)})
+fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(dirData,x),pattern='S._Welcome.csv|S4_ParticipantTracker.csv',full.names = T)})
 
 # initialize empty list
 PIDs <- tibble(PubID=character(),email=character(),Session=character(),`Participant Private ID`=character())
@@ -197,11 +195,11 @@ suppressWarnings(
 matchingPIDs <- PIDs$PID
 names(matchingPIDs) <- PIDs$origPID
 
-sessiondatadir <- tibble(fname = list.files(l$datadir,paste0('data_exp_[^\\.]+Session.*$'),include.dirs = T) ) %>%
+sessiondatadir <- tibble(fname = list.files(dirData,paste0('data_exp_[^\\.]+Session.*$'),include.dirs = T) ) %>%
   filter(! str_detect(fname,'processed'),
          str_detect(fname,paste0('_',ExperimentName,'_')))
 
-fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(l$datadir,x),pattern='S._.*.csv',full.names = T)})
+fs <- sapply(sessiondatadir,function(x){list.files(path=file.path(dirData,x),pattern='S._.*.csv',full.names = T)})
 fs <- fs[!str_detect(fs,'PID.csv')]
 fs <- fs[str_detect(fs,'S4')]
 

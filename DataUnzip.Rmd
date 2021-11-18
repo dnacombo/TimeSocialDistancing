@@ -14,7 +14,6 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: null
 ---
 
 ```{r Prepare, message=FALSE}
@@ -27,8 +26,6 @@ l <- paramsMatch(ExperimentName = params$ExperimentName,
                  Country = params$Country, 
                  experimentIDs = ExperimentIDs)
 
-l$datadir <- params$datadir
-
 dum <- list2env(l, envir = environment())
 ```
 
@@ -37,10 +34,10 @@ dum <- list2env(l, envir = environment())
 ```{r list and unzip files, message=F}
 
 # list files
-zipfiles <- unlist(sapply(ExperimentID,function(f){list.files(datadir,paste0('data_exp_',f,'-v.*.zip'),full.names = T)}))
+zipfiles <- unlist(sapply(ExperimentID,function(f){list.files(dirData,paste0('data_exp_',f,'-v.*.zip'),full.names = T)}))
 
 # create temp dir
-tmpdir <- file.path(datadir,'.tmp',paste0(sample(LETTERS,10), collapse = ''))
+tmpdir <- file.path(dirData,'.tmp',paste0(sample(LETTERS,10), collapse = ''))
 # remove any preexisting data
 unlink(tmpdir,recursive=T)
 
@@ -52,7 +49,7 @@ dum <- sapply(zipfiles,function(x){unzip(x,exdir=tmpdir)})
 sessiondatadir <- character()
 for (S in Session) {
   m <- paramsMatch(ExperimentName = ExperimentName, ExperimentID = ExperimentID, Session = S, experimentIDs = ExperimentIDs)
-  sessiondatadir[S] <- file.path(datadir,paste0('data_exp_',paste(as.character(m$ExperimentID),collapse = '-'), '_', m$ExperimentName[1], '_Session',S))
+  sessiondatadir[S] <- file.path(dirData,paste0('data_exp_',paste(as.character(m$ExperimentID),collapse = '-'), '_', m$ExperimentName[1], '_Session',S))
 }
 
 # remove eventual previous output in that directory

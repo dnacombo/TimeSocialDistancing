@@ -9,10 +9,7 @@ output:
     code_folding: hide
     df_print: paged
     toc: yes
-params:
-  datadir: '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-editor_options: 
-  chunk_output_type: console
+
 ---
 
 ```{r setup, message=F}
@@ -36,7 +33,7 @@ QTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1bwKj-ngDr
 QToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1YOZ_3MMdo7ghgdIyhxgWqE8WYsB_wFihlEAVhODkz7Q/edit#gid=1845970270')
 
 # first list all data files, ignore processed ones, extract experimentID and UniqueName
-fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
+fs <- list.files(dataDir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
   filter(!str_detect(fname,'_processed')) %>%
   extract(fname,into=c('experimentID','UniqueName'),'data_exp_([^\\/]*?)(?:_Session[^\\/]*)?/S._([^\\/]*).csv',remove = F) %>%
@@ -46,7 +43,7 @@ fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names
   group_by(UniqueName, experimentID) %>%
   group_split()
 
-# allQ <- read_csv(f <- file.path(params$datadir,'AllQuestionnaireQuestions.csv')) %>%
+# allQ <- read_csv(f <- file.path(dataDir,'AllQuestionnaireQuestions.csv')) %>%
 #   group_by(UniqueName,Question) %>%
 #   summarize(n = 1) %>% select(-n) %>%
 #   write_csv(f)
@@ -120,7 +117,7 @@ QTranslateOrMap <- Responses %>%
   group_keys() %>% 
   left_join(QTranslateOrMap,by=c('UniqueName','Question')) %>%
   arrange(UniqueName, Standard) %>%
-  write_csv(file.path(params$datadir,'_QTranslateOrMap.csv'),na = '')
+  write_csv(file.path(dataDir,'_QTranslateOrMap.csv'),na = '')
 
 # Now split the list of Responses to all Questions and Questionnaire
 splitResponses <- Responses %>%
@@ -189,7 +186,7 @@ for (r in splitResponses) {
 }
 
 ToMap %>% select(UniqueName, Question, `EN-GB`,everything()) %>%
-  write_csv(f <- file.path(params$datadir,'ToMapSheetQuestionnaire_new.csv'),na='')
+  write_csv(f <- file.path(dataDir,'ToMapSheetQuestionnaire_new.csv'),na='')
 
 tmp <- QTranslateOrMap %>% drop_na(UniqueName,Question,TranslateOrMap,Standard)
 QuestionRecoder <- tmp$Standard
@@ -206,7 +203,7 @@ toto <- ToTranslate %>%
   arrange(Country, UniqueName, Question, Response) %>%
   distinct(Country, UniqueName, Question, Response, .keep_all = T) %>%
   select(Country,UniqueName,Question,Response,Translated) %>%
-  write_csv(f <- file.path(params$datadir,'ToTranslateSheetQuestionnaire_new.csv'),na='')
+  write_csv(f <- file.path(dataDir,'ToTranslateSheetQuestionnaire_new.csv'),na='')
 
 ```
 
@@ -221,7 +218,7 @@ TToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/16pewaHuHCu8Y
 
 
 # first list all files, ignore processed ones, extract experimentID and UniqueName
-fs <- list.files(params$datadir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
+fs <- list.files(dataDir,pattern='(S[[:digit:]]+_[^\\/]*).csv',full.names = T,recursive = T) %>%
   tibble(fname=.) %>%
   filter(!str_detect(fname,'_processed')) %>%
   extract(fname,into=c('experimentID','UniqueName'),'data_exp_([^\\/]*?)(?:_Session[^\\/]*)?/S._([^\\/]*).csv',remove = F) %>%
@@ -258,7 +255,7 @@ TTranslateOrMap <- ResponseFields %>%
   group_by(UniqueName, Field) %>% 
   group_keys() %>% 
   left_join(TTranslateOrMap,by=c('UniqueName','Field'))   %>%
-  write_csv(file.path(params$datadir,'_TTranslateOrMap.csv'),na = '')
+  write_csv(file.path(dataDir,'_TTranslateOrMap.csv'),na = '')
 
 ToMap <- tibble()
 ToTranslate <- tibble()
@@ -339,7 +336,7 @@ for (f in fs) {
 
 ToMap %>%
   arrange(UniqueName,Field) %>%
-  write_csv(file.path(params$datadir,'ToMapSheetTask_new.csv'),na = '')
+  write_csv(file.path(dataDir,'ToMapSheetTask_new.csv'),na = '')
 
 ToTranslate %>%
   filter(!is.na(Value)) %>%
@@ -350,7 +347,7 @@ ToTranslate %>%
   select(-experimentID) %>%
   arrange(Country, UniqueName, Field, Value) %>%
   distinct() %>%
-  write_csv(file.path(params$datadir,'ToTranslateSheetTask_new.csv'),na='')
+  write_csv(file.path(dataDir,'ToTranslateSheetTask_new.csv'),na='')
 
 ```
 

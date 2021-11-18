@@ -1,6 +1,6 @@
 source("helpers.R")
 
-SubjectiveConfinementDuration <- gimmeRdata('TSDshiny/data',UniqueName = 'ConfinementTrack') %>%
+SubjectiveConfinementDuration <- gimmeRdata(dirBlursday,UniqueName = 'ConfinementTrack') %>%
   QTranslate() %>%
   filter(`Question_Key` == 'ConfDuration') %>%
   unite('Date_ConfDuration', Local_Date, Response) %>%
@@ -35,6 +35,6 @@ SubjectiveConfinementDuration <- gimmeRdata('TSDshiny/data',UniqueName = 'Confin
          slope4 = ifelse(is.na(slope4), 1, slope4)) %>%
   filter(across(starts_with('slope'),function(x){between(x,0.001,10)}))
 
-save(SubjectiveConfinementDuration, file=file.path('TSDshiny/data',"SubjectiveConfinementDuration.RData"))
+save(SubjectiveConfinementDuration, file=file.path(dirBlursday,"SubjectiveConfinementDuration.RData"))
 
   

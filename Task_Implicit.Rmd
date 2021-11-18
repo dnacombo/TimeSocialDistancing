@@ -5,7 +5,6 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA
 output:
   html_document:
     code_folding: hide
@@ -24,7 +23,6 @@ source('helpers.R')
 # find out which experiment name, ID, session... we're talking about
 l <- paramsMatch(params,
                  experimentIDs = ExperimentIDs)
-l$datadir <- params$datadir
 
 library(ggbeeswarm)
 library(ggrepel)
@@ -36,7 +34,7 @@ library(skimr)
 
 ```{r, rows.print = 100}
 
-  orig <- gimmedata(l$datadir, ExperimentID = paste(l$ExperimentID,collapse='|'), UniqueName = 'Implicit', verbose = F, progress = F) %>%
+  orig <- gimmedata(dirData, ExperimentID = paste(l$ExperimentID,collapse='|'), UniqueName = 'Implicit', verbose = F, progress = F) %>%
     mutate(`Reaction Time` = as.numeric(`Reaction Time`),
            Session = as.factor(Session),
            UniqueName = as.factor(UniqueName),

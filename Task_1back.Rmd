@@ -2,7 +2,6 @@
 title: "Extracting data for Task Delay Discouting"
 params:
   ExperimentID: [15096,16303]
-  datadir: /home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA
 output:
   html_document:
     df_print: paged
@@ -21,7 +20,7 @@ source('helpers.R')
 
 ```{r, message=F}
 
-datadir = file.path(params$datadir,paste0('data_exp_', paste(params$experimentID,collapse='-'), '_', ExperimentName[1]))
+datadir = file.path(dirData,paste0('data_exp_', paste(params$experimentID,collapse='-'), '_', ExperimentName[1]))
 outdir = paste(datadir,'processed',sep='_')
 dir.create(outdir,showWarnings = F)
 
@@ -29,7 +28,7 @@ experimentID <- params$experimentID
 
 datafiles <- list.files(datadir,'S1_1back_r.*.csv',full.names = T)
 
-tmpdir <- file.path(params$datadir,'.tmp')
+tmpdir <- file.path(dirData,'.tmp')
 unlink(tmpdir,recursive=T)
 
 if (is_empty(datafiles)){
