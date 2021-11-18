@@ -21,26 +21,67 @@ output:
 source('helpers.R')
 
 
-```
+``` 
 
+# Loading data from DB
 ```{r}
 alldata <- gimmeRdata(DataDir = datadir, fast = T, progress = T, as.list = T)
+```
 
+## finished tasks
+```{r}
+all_endedtasks <- list()
 for (i in 1:length(alldata)) {
-  alldata[[i]] <- alldata[[i]] %>%
+  all_endedtasks[[i]] <- alldata[[i]] %>%
+    mutate(Run = str_trunc(Run,1,ellipsis = '')) %>%
     filter({if ("Trial_Number" %in% names(.)) {Trial_Number == 'END TASK'} else {Question_Key == 'END QUESTIONNAIRE'}})
 }
-alldata <- bind_rows(alldata)
+all_endedtasks <- bind_rows(all_endedtasks)
+```
+
+## started tasks
+```{r}
+all_startedtasks <- list()
+for (i in 1:length(alldata)) {
+  all_startedtasks[[i]] <- alldata[[i]] %>%
+    mutate(Run = str_trunc(Run,1,ellipsis = '')) %>%
+    filter({if ("Trial_Number" %in% names(.)) {Trial_Number == 'BEGIN TASK'} else {Question_Key == 'BEGIN QUESTIONNAIRE'}})
+}
+all_startedtasks <- bind_rows(all_startedtasks)
+```
+
+## PIDs
+```{r}
+all_PIDs <- lapply(alldata,function(x) {
+    mutate(x,Run = str_trunc(Run,1,ellipsis = '')) %>%
+    group_by(Country,Session,Unique_Name, Run) %>%
+    summarize(N = length(unique(factor(as.character(PID)))))
+})
+all_PIDs <- bind_rows(all_PIDs)
 ```
 
 
 # General count, all countries, Sessions, UniqueNames & Runs
 
+## Count finished tasks
 ```{r}
-count <- alldata %>%
-  mutate(Run = str_trunc(Run,1,ellipsis = '')) %>%
+count <- (count_long_endedtasks <- all_endedtasks %>%
   group_by(Country,Session, Run, Unique_Name) %>%
-  summarize(N = n()) %>%
+  summarize(N = n())) %>%
+  pivot_wider(id_cols = c(Session, Unique_Name, Run), values_from = N, names_from = Country) %>%
+  arrange(Session,Unique_Name,Run)
+```
+
+```{r}
+count %>%
+  googlesheets4::write_sheet(ss = 'https://docs.google.com/spreadsheets/d/1ZUvwLJOXNJneGJ2F2SOdWRTsjESctKbtZwqW9T9_A6E', sheet = 'All Sessions')
+```
+## Count started tasks
+
+```{r}
+count <- (count_long_startedtasks <- all_startedtasks %>%
+  group_by(Country,Session, Run, Unique_Name) %>%
+  summarize(N = n())) %>%
   pivot_wider(id_cols = c(Session, Unique_Name, Run), values_from = N, names_from = Country) %>%
   arrange(Session,Unique_Name,Run)
 ```
@@ -48,12 +89,81 @@ count <- alldata %>%
 
 ```{r}
 count %>%
-  googlesheets4::write_sheet(ss = 'https://docs.google.com/spreadsheets/d/1ZUvwLJOXNJneGJ2F2SOdWRTsjESctKbtZwqW9T9_A6E', sheet = 'All Sessions')
+  googlesheets4::write_sheet(ss = 'https://docs.google.com/spreadsheets/d/1ZUvwLJOXNJneGJ2F2SOdWRTsjESctKbtZwqW9T9_A6E', sheet = 'StartedTasks All Sessions')
 ```
+## Count PIDs
+```{r}
+count_PIDs <- (count_long_uniquePIDs <- all_PIDs %>%
+  group_by(Country,Session, Run, Unique_Name) %>%
+  summarize(N = sum(N))) %>%
+  pivot_wider(id_cols = c(Session, Unique_Name, Run), values_from = N, names_from = Country) %>%
+  arrange(Session,Unique_Name,Run)
+```
+
+```{r}
+count_PIDs %>%
+  googlesheets4::write_sheet(ss = 'https://docs.google.com/spreadsheets/d/1ZUvwLJOXNJneGJ2F2SOdWRTsjESctKbtZwqW9T9_A6E', sheet = 'unique PIDs')
+```
+## Checking inconsistencies
+
+```{r}
+fs <- list.files('/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', pattern = '^S._.*csv', recursive = T, full.names = T)
+
+count_csv <- tibble()
+pb <- txtProgressBar(min = 0, max = length(fs), initial = 0, char = "=",
+                         width = 40, style = 3)
+i <- 1
+for (f in fs){
+  tmp <- gimmedata(file = f, progress = F)
+  C <- filter(ExperimentIDs,ExperimentID %in% unique(tmp$`Experiment ID`)) %>%
+    .$Country
+  S <- unique(tmp$Session)
+  R <- unique(tmp$Run)
+  UN <- unique(tmp$UniqueName)
+  Ncsv_uniquePID <- length(unique(tmp$PID))
+  tmp %>% filter({if ("Trial Number" %in% names(.)) {`Trial Number` == 'END TASK'} else {`Question Key` == 'END QUESTIONNAIRE'}}) %>%
+    summarize(N = n()) %>%
+    .$N ->  Ncsv_end
+  tmp %>% filter({if ("Trial Number" %in% names(.)) {`Trial Number` == 'BEGIN TASK'} else {`Question Key` == 'BEGIN QUESTIONNAIRE'}}) %>%
+    summarize(N = n()) %>%
+    .$N ->  Ncsv_beg
+  
+  if (any(sapply(c(S, R, UN, Ncsv_uniquePID, Ncsv_beg, Ncsv_end), length) != 1)) stop()
+  Ntmp <- tibble(Country = C, Session = S, Run = R, Unique_Name = UN, Ncsv_uniquePID, Ncsv_beg, Ncsv_end)
+  count_csv <- bind_rows(count_csv,Ntmp)
+  
+  setTxtProgressBar(pb,i)
+  i<-i+1
+}
+
+ count_csv <- filter(count_csv, ! Unique_Name %in% c('END', 'Demographics'))
+
+
+```
+
+
+```{r}
+all_counts <- left_join(count_csv, count_long_startedtasks, by = c("Country", "Session", "Run", "Unique_Name")) %>% 
+  rename(Ndb_beg = N) %>%
+  left_join(count_long_endedtasks, by = c("Country", "Session", "Run", "Unique_Name")) %>% 
+  rename(Ndb_end = N) %>%
+  left_join(count_long_uniquePIDs, by = c("Country", "Session", "Run", "Unique_Name")) %>%
+    rename(Ndb_uniquePID = N) %>%
+  select(Country, Session, Run, Unique_Name, Ncsv_uniquePID, Ndb_uniquePID, Ncsv_beg, Ndb_beg, Ncsv_end, Ndb_end) %>%
+  mutate(unique_equal = Ncsv_uniquePID == Ndb_uniquePID, .before = Ncsv_uniquePID) %>%
+  mutate(beg_equal = Ncsv_beg == Ndb_beg, .before = Ncsv_beg) %>%
+  mutate(end_equal = Ncsv_end == Ndb_end, .before = Ncsv_end)
+
+all_counts %>% filter(! unique_equal | ! beg_equal | ! end_equal)
+
+```
+
+
+
 
 # Attrition figure
 ```{r}
-toplot <- alldata %>% 
+toplot <- all_endedtasks %>% 
   group_by(Country,Session, Participant_Private_ID) %>%
   arrange(UTC_Date) %>%
   group_by(Country, Session, Participant_Private_ID) %>%
@@ -73,7 +183,7 @@ ggplot(toplot, aes(x = i, y = n, col = Country)) +
 
 # Task/Questionnaire order table
 ```{r}
-TaskOrder <- alldata %>% 
+TaskOrder <- all_endedtasks %>% 
   group_by(Country,Session, Participant_Private_ID) %>%
   arrange(UTC_Date) %>%
   mutate(i = 1:n(), .before = 1) %>%
@@ -86,7 +196,7 @@ TaskOrder <- alldata %>%
 # Participants who signed up to start
 
 ```{r}
-alldata %>%
+all_endedtasks %>%
   group_by(PID) %>%
   slice(1) %>%
   ungroup() %>%
@@ -94,7 +204,7 @@ alldata %>%
 ```
 # Participants who finished Session 1
 ```{r}
-alldata %>%
+all_endedtasks %>%
   group_by(PID, Unique_Name, Session) %>%
   # SemanticTime run 2 is the last task
   filter(Session == 'S1', Unique_Name == 'SemanticTime', Run == 2) %>%
@@ -105,7 +215,7 @@ alldata %>%
 
 # Participants who finished Session 2
 ```{r}
-alldata %>%
+all_endedtasks %>%
   group_by(PID, Unique_Name, Session) %>%
   # SemanticTime run 2 is the last task
   filter(Session == 'S2', Unique_Name == 'SemanticTime', Run == 2) %>%
@@ -115,7 +225,7 @@ alldata %>%
 ```
 # Participants who finished Session 3
 ```{r}
-alldata %>%
+all_endedtasks %>%
   group_by(PID, Unique_Name, Session) %>%
   # SelfPercept is the last task
   filter(Session == 'S3', Unique_Name == 'SelfPercept') %>%
@@ -125,7 +235,7 @@ alldata %>%
 ```
 # Participants who finished Session 4
 ```{r}
-alldata %>%
+all_endedtasks %>%
   group_by(PID, Unique_Name, Session) %>%
   filter(Session == 'S4', Unique_Name == 'HADS') %>%
   slice(1) %>%
@@ -134,7 +244,7 @@ alldata %>%
 ```
 # Participants who finished Session Control
 ```{r}
-alldata %>%
+all_endedtasks %>%
   group_by(PID, Unique_Name, Session) %>%
   filter(Session == 'SC', Unique_Name == 'END') %>%
   slice(1) %>%
@@ -142,58 +252,58 @@ alldata %>%
   summarize(n = n())
 ```
 
-```{r}
-toplot <- alldata %>% group_by(PID,Unique_Name,Run,Session) %>%
-  filter(`Trial_Number`  =='END TASK' | `Question_Key` == 'END QUESTIONNAIRE') %>%
-  ungroup() %>%
-  arrange(`UTC_Date`) 
+<!-- ```{r} -->
+<!-- toplot <- all_endedtasks %>% group_by(PID,Unique_Name,Run,Session) %>% -->
+<!--   filter(`Trial_Number`  =='END TASK' | `Question_Key` == 'END QUESTIONNAIRE') %>% -->
+<!--   ungroup() %>% -->
+<!--   arrange(`UTC_Date`)  -->
 
 
-sessionDates <- toplot %>%
-  group_by(Session) %>%
-  summarize(Start = first(`UTC_Date`),
-            Stop = last(`UTC_Date`)) %>%
-  select(Session,Start,Stop)
+<!-- sessionDates <- toplot %>% -->
+<!--   group_by(Session) %>% -->
+<!--   summarize(Start = first(`UTC_Date`), -->
+<!--             Stop = last(`UTC_Date`)) %>% -->
+<!--   select(Session,Start,Stop) -->
 
-# confinement <- tibble(Date = lubridate::ymd_hms(c('2020/03/17 12:00:00','2020/05/11 23:59:59','2020/10/30 00:00:00', '2020/12/15 23:59:59'),tz = 'CET'), Session = c(1,1,2,2), Begend = c('Start','Stop','Start','Stop')) %>%
-#   pivot_wider(values_from=Date,names_from=Begend)
+<!-- # confinement <- tibble(Date = lubridate::ymd_hms(c('2020/03/17 12:00:00','2020/05/11 23:59:59','2020/10/30 00:00:00', '2020/12/15 23:59:59'),tz = 'CET'), Session = c(1,1,2,2), Begend = c('Start','Stop','Start','Stop')) %>% -->
+<!-- #   pivot_wider(values_from=Date,names_from=Begend) -->
 
-ggplot(toplot,aes(x=`UTC_Date`, y=PID, col=Unique_Name, shape = Session)) +
-  geom_point() +
-  # geom_ribbon(aes(xmin = Start, xmax = Stop, fill = Session, x = NA, y = NA, col = NA, shape = NA), data=sessionDates) +
-  # geom_ribbon(aes(xmin = Start, xmax = Stop,fill=Session, x = NA, y = NA, col = NA, shape = NA), data=confinement) +
-  geom_vline(aes(xintercept = Start),linetype = 2,data=sessionDates) +
-  geom_vline(aes(xintercept = Stop),linetype = 3,data=sessionDates) +
-  theme(axis.text.y = element_blank(),
-        axis.ticks.y = element_blank()) +
-  xlab('Date') + ylab('Participants')
+<!-- ggplot(toplot,aes(x=`UTC_Date`, y=PID, col=Unique_Name, shape = Session)) + -->
+<!--   geom_point() + -->
+<!--   # geom_ribbon(aes(xmin = Start, xmax = Stop, fill = Session, x = NA, y = NA, col = NA, shape = NA), data=sessionDates) + -->
+<!--   # geom_ribbon(aes(xmin = Start, xmax = Stop,fill=Session, x = NA, y = NA, col = NA, shape = NA), data=confinement) + -->
+<!--   geom_vline(aes(xintercept = Start),linetype = 2,data=sessionDates) + -->
+<!--   geom_vline(aes(xintercept = Stop),linetype = 3,data=sessionDates) + -->
+<!--   theme(axis.text.y = element_blank(), -->
+<!--         axis.ticks.y = element_blank()) + -->
+<!--   xlab('Date') + ylab('Participants') -->
 
-```
+<!-- ``` -->
 
 
-```{r}
+<!-- ```{r} -->
 
-count <- tibble()
-if ('Trial_Number' %in% colnames(alldata)) {
-  count <- filter(alldata,`Trial_Number` == 'END TASK') %>%
-    group_by(Country,Session, Run, Unique_Name) %>%
-    summarize(N = n()) %>%
-    bind_rows(count)
-}
-if ('Question_Key' %in% colnames(alldata)) {
-  count <- filter(alldata,`Question_Key` == 'END QUESTIONNAIRE') %>%
-    group_by(Country,Session, Run, Unique_Name) %>%
-    summarize(N = n()) %>%
-    bind_rows(count)
-}
+<!-- count <- tibble() -->
+<!-- if ('Trial_Number' %in% colnames(alldata)) { -->
+<!--   count <- filter(alldata,`Trial_Number` == 'END TASK') %>% -->
+<!--     group_by(Country,Session, Run, Unique_Name) %>% -->
+<!--     summarize(N = n()) %>% -->
+<!--     bind_rows(count) -->
+<!-- } -->
+<!-- if ('Question_Key' %in% colnames(alldata)) { -->
+<!--   count <- filter(alldata,`Question_Key` == 'END QUESTIONNAIRE') %>% -->
+<!--     group_by(Country,Session, Run, Unique_Name) %>% -->
+<!--     summarize(N = n()) %>% -->
+<!--     bind_rows(count) -->
+<!-- } -->
 
-ggplot(count,aes(x=Unique_Name,y=N,fill = Session)) +
-  facet_wrap(~ Country, scales = 'free_y') +
-  geom_col(position = position_dodge(width = 1)) +
-  # geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) +
-  theme(axis.text.x = element_text(angle = 30,hjust = 1)) +
-  labs(x='',y='Count')
-```
+<!-- ggplot(count,aes(x=Unique_Name,y=N,fill = Session)) + -->
+<!--   facet_wrap(~ Country, scales = 'free_y') + -->
+<!--   geom_col(position = position_dodge(width = 1)) + -->
+<!--   # geom_label(aes(label=N), position = position_dodge(width = 1), show.legend = F) + -->
+<!--   theme(axis.text.x = element_text(angle = 30,hjust = 1)) + -->
+<!--   labs(x='',y='Count') -->
+<!-- ``` -->
 
 
 
