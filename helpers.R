@@ -1,4 +1,6 @@
 library(tidyverse)
+library(emmeans)
+theme_set(theme_minimal())
 options(dplyr.summarise.inform=F)
 options(gargle_oauth_email = 'maximilien.chaumon@gmail.com')
 
