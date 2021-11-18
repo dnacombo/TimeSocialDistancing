@@ -19,12 +19,11 @@ library(tidyverse)
 library(ggbeeswarm)
 library(flextable)
 library(MaxPac)
-library(afex)
+# library(afex)
 library(emmeans)
 library(effectsize)
 theme_set(theme_minimal())
 
-datadir = params$datadir
 source('helpers.R')
 
 
@@ -450,7 +449,7 @@ emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockD
   geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
   scale_x_log10() +
   scale_y_log10() +
-  ylab('EstimatedDuration (min)') +
+  ylab('Duration Estimates (min)') +
   xlab('Clock Duration (min)') +
   scale_fill_manual(values = Palette_SessionS1SC) +
   scale_color_manual(values = Palette_SessionS1SC) +
@@ -467,15 +466,35 @@ emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockD
   geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
   scale_x_log10() +
   scale_y_log10() +
-  ylab('EstimatedDuration (min)') +
-  xlab('Clock Duration (min)') +
+  ylab('duration estimate (min)') +
+  xlab('clock duration (min)') +
   scale_fill_manual(values = Palette_SessionS1SC) +
   scale_color_manual(values = Palette_SessionS1SC) +
-  theme_minimal()
+  labs(col = 'session')
+
+imagefile = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/Fig4a.png'
+ggsave(
+  basename(imagefile),
+  plot = last_plot(),
+  device = 'png',
+  width = 200,
+  height = 100,
+  path = dirname(imagefile),
+  units = 'mm',
+  bg = "white"
+)
+
+googledrive::drive_auth()
+googledrive::drive_upload(imagefile,
+                          path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
+                          overwrite = T)
 ```
 
 ```{r}
 summary(m)
+
+summary(emtrends(m,~Session, 'log10(ClockDuration)'))
+
 anova(m)
 
 summary(emmeans(m,~ClockDuration+Session,at = list(ClockDuration = c(10,30,60))),type = 'response') %>%
@@ -493,6 +512,7 @@ summary(emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(15,20, by
 
 
 tostat %>% group_by(Session) %>% summarize(mean_ClockDuration = mean(ClockDuration))
+
 
 ```
 
@@ -884,13 +904,13 @@ We thus try to see if the error related to subjects in the intercept of Estimate
 The standard deviation of the estimated random effects is much smaller than that of the residuals, suggesting that random effects can be ignored in this case.
 
 ```{r}
-# m <- aov_4(data = tostat, log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Time_Of_Day + (1 | PID))
+# # m <- aov_4(data = tostat, log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Time_Of_Day + (1 | PID))
+# # 
+# # m <- aov_ez(id = 'PID', dv = 'logrEstimatedDuration', within = c('Stringency_Index', 'Subjective_Confinement', 'Time_Of_Day'), data = tostat)
 # 
-# m <- aov_ez(id = 'PID', dv = 'logrEstimatedDuration', within = c('Stringency_Index', 'Subjective_Confinement', 'Time_Of_Day'), data = tostat)
+# # %>% filter(!(Session == 'SC' & Country == 'IT') & !(Session == 'SC' & Country == 'JP'))
 
-# %>% filter(!(Session == 'SC' & Country == 'IT') & !(Session == 'SC' & Country == 'JP'))
-
-m <- lmer(log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3) +  (1 | PID), data = tostat )
+m <- lmerTest::lmer(log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3) +  (1 | PID), data = tostat )
 summary(m)
 anova(m)
 effectsize::eta_squared(m)
@@ -912,7 +932,7 @@ plot(m)
 Same reasoning with Mobility_Transit:
 
 ```{r}
-m <- lmer(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  (1 | PID), data = tostat )
+m <- lmerTest::lmer(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  poly(Hour_Of_Day,3) + (1 | PID), data = tostat )
 summary(m)
 anova(m)
 effectsize::eta_squared(m)
@@ -951,9 +971,28 @@ ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = t
   geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
   scale_y_log10( limits = c(.3,3)) +
   scale_fill_manual(values = Palette_Session) +
-  scale_color_manual(values = Palette_Session)
+  scale_color_manual(values = Palette_Session) +
+  ylab('relative duration estimate') +
+  xlab('stringency index') +
+  labs(col = 'session')
 em
 
+imagefile = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/Fig4b.png'
+ggsave(
+  basename(imagefile),
+  plot = last_plot(),
+  device = 'png',
+  width = 200,
+  height = 100,
+  path = dirname(imagefile),
+  units = 'mm',
+  bg = "white"
+)
+
+googledrive::drive_auth()
+googledrive::drive_upload(imagefile,
+                          path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
+                          overwrite = T)
 ```
 ##### Mobility Transit
 
@@ -974,9 +1013,28 @@ ggplot(aes(x = Mobility_Transit,y = rEstimatedDuration, col = Session), data = t
   geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
   scale_y_log10( limits = c(.3,3)) +
   scale_fill_manual(values = Palette_Session) +
-  scale_color_manual(values = Palette_Session)
+  scale_color_manual(values = Palette_Session) +
+  ylab('relative duration estimate') +
+  xlab('mobility') +
+  labs(col = 'session')
 em
 
+imagefile = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/Fig4c.png'
+ggsave(
+  basename(imagefile),
+  plot = last_plot(),
+  device = 'png',
+  width = 200,
+  height = 100,
+  path = dirname(imagefile),
+  units = 'mm',
+  bg = "white"
+)
+
+googledrive::drive_auth()
+googledrive::drive_upload(imagefile,
+                          path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
+                          overwrite = T)
 ```
 Other mobility measures have little effect on rEstimatedDuration
 ```{r}
