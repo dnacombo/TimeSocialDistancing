@@ -24,7 +24,6 @@ library(emmeans)
 library(effectsize)
 theme_set(theme_minimal())
 
-datadir = params$datadir
 source('helpers.R')
 
 
