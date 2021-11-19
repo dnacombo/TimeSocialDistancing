@@ -1,0 +1,241 @@
+---
+title: "ImplicitTiming_BlursDay"
+output: html_document
+
+---
+```{r, message=F}
+
+library(tidyverse)
+library(ggbeeswarm)
+library(ggrepel)
+
+library(lme4)
+library(lmerTest)
+library(emmeans)
+
+# library(corrplot)
+# library(Hmisc)
+
+require('dplyr')
+
+source('helpers.R')
+```
+
+```{r, message=F}
+# load DATA from all countries jointly
+load('/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/data-SubjTemporalDistance_France-Argentina-Canada-Germany-Greece-India-Italy-Japan-Turkey_2021-11-01.rdata')
+head(TSDdata)
+
+
+```
+
+# DATA curation
+```{r, message=F}
+
+# get the relevant fields from the gorilla output
+DATA <- TSDdata %>% 
+  mutate(Hour_Of_Day = lubridate::hour(Local_Date),
+               Time_Of_Day = cut(Hour_Of_Day, breaks = c(0,6,12,18,24), labels = c('night', 'morning', 'afternoon', 'evening'))) %>% 
+  select(Country, PID, Participant_Private_ID, Session, Run, Question_Key, Response, Local_Date, Age, Reported_Loneliness,   Felt_Loneliness, Stringency_Index, Subjective_Confinement, ConfDuration, Mobility_Transit, Hour_Of_Day) %>% 
+  filter(Question_Key == 'SubjectiveTemporalDistance_Week' | Question_Key == 'SubjectiveTemporalDistance_Month' | Question_Key == 'SubjectiveTemporalDistance_month') %>% 
+  mutate(Question_Key = str_to_lower(Question_Key)) %>% 
+  distinct() %>% 
+  pivot_wider(names_from = "Question_Key", 
+              values_from = "Response") %>% # , values_fn = length
+  rename('week'  = 'subjectivetemporaldistance_week', 'month' = 'subjectivetemporaldistance_month') %>% 
+   mutate(week = as.numeric(week), month = as.numeric(month)) %>% 
+   filter(Session %in% c('S1', 'S2', 'S3', 'SC'))
+head(DATA)
+
+
+rm(TSDdata)
+```
+
+# plot histogram of the VAS responses for errk / month
+# question: 
+# Ce jour futur vous parait subjectivement: très proche/ très elogné
+```{r, message=F}
+# histogram: week
+DATA %>% 
+  ggplot(aes(x=week)) +
+  geom_histogram(bins=100)
+
+# histogram: month
+DATA %>% 
+  ggplot(aes(x=month)) +
+  geom_histogram(bins=100)
+
+```
+
+# PLOTS
+```{r, message=F}
+
+# XXX TO DO
+# check mobility/ stringency index
+# use same covariates as other analyses
+# use same color scale
+# remove 50 values, because they just left the default?
+
+# Session
+DATA %>% 
+  ggplot(aes(x=Session, y=week, col=Session)) +
+  geom_boxplot()
+
+DATA %>% 
+  ggplot(aes(x=Session, y=month, col=Session)) +
+  geom_boxplot()
+
+
+# Country
+DATA %>% 
+  ggplot(aes(x=Country, y=week, col=Country)) +
+  geom_boxplot()
+
+DATA %>% 
+  ggplot(aes(x=Country, y=month, col=Country)) +
+  geom_boxplot()
+
+
+# Stringency
+DATA %>% 
+  ggplot(aes(x=Stringency_Index, y=week)) +
+  geom_point() + 
+  geom_smooth(method='lm') 
+
+DATA %>% 
+  ggplot(aes(x=Stringency_Index, y=month)) +
+  geom_point() + 
+  geom_smooth(method='lm') 
+
+
+# Age
+DATA %>% 
+  ggplot(aes(x=Age, y=month)) +
+  geom_point() + 
+  geom_smooth(method='lm')
+
+
+# Month x Week
+DATA %>% 
+  ggplot(aes(x=week, y=month)) +
+  geom_point() + 
+  geom_smooth(method='lm') +
+  geom_abline(intercept = 0, slope = 4) +
+  facet_grid(.~Session)
+
+# check mobility/ stringency index
+
+DATA$week_month <- DATA$month/DATA$month
+DATA %>% 
+  ggplot(aes(x=week_month)) +
+  geom_histogram(bins=100)
+
+median(DATA$week_month, na.rm=TRUE)
+# [1] 0.6097561
+```
+
+# STATS
+
+```{r, message=F}
+# Does stringency affect the subjective temporal distance of a week / month?
+
+
+# dichotomize responses - WEEK
+DATA_tostat <- DATA %>%
+  filter(week != 50) %>%
+  mutate(Faster = week > 50)
+
+m_week <- glm(Faster ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, family = 'binomial', data = DATA_tostat)
+plot(m_week)
+summary(m_week)
+anova(m_week, test = 'F')
+
+
+# dichotomize responses - MONTH
+DATA_tostat <- DATA %>%
+  filter(month != 50) %>%
+  mutate(Faster = month > 50)
+
+m_month <- glm(Faster ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, family = 'binomial', data = DATA_tostat)
+plot(m_month)
+summary(m_month)
+anova(m_month, test = 'F')
+```
+
+
+```{r, message=F}
+# ordinal regression
+library(ordinalCont)
+
+m_ord_week <- ocm(week ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, data = DATA %>% filter(!is.na(Age) & !is.na(week)))
+summary(m_ord_week)
+plot(m_ord_week)
+
+m_ord_month <- ocm(month ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, data = DATA %>% filter(!is.na(Age) & !is.na(month)))
+summary(m_ord_month)
+plot(m_ord_month)
+```
+
+
+```{r, message=F}
+# plot model results
+g <- expand_grid(Stringency_Index = seq(35, 100, by=20), week = 50, Mobility_Transit = 0, Age = 40, Hour_Of_Day = 12)
+g$week <- predict(m_ord_week, newdata = g) * 100
+
+ggplot(g, aes(x=Stringency_Index, y=week, col = Stringency_Index)) +
+  geom_line() +
+  geom_jitter(data = DATA)
+```
+
+
+```{r, message=F} 
+# plot model results
+g <- expand_grid(Stringency_Index = seq(35, 100, by=20), month = 50, Mobility_Transit = 0, Age = 40, Hour_Of_Day = 12)
+g$week <- predict(m_ord_month, newdata = g) * 100
+
+ggplot(g, aes(x=Stringency_Index, y=month, col = Stringency_Index)) +
+  geom_line() +
+  geom_jitter(data = DATA)
+```
+
+```{r, message=F}
+# plot model results
+g <- expand_grid(Stringency_Index = 50, week = 50, Mobility_Transit = 0, Age = seq(20,85,by=5), Hour_Of_Day = 12)
+g$week <- predict(m_ord_week, newdata = g) * 100
+
+ggplot(g, aes(x=Age, y=week, col = Age)) +
+  geom_line() +
+  geom_jitter(data = DATA)
+```
+
+
+```{r, message=F} 
+# plot model results
+g <- expand_grid(Stringency_Index = 50, month = 50, Mobility_Transit = 0, Age = seq(20,85,by=5), Hour_Of_Day = 12)
+g$week <- predict(m_ord_month, newdata = g) * 100
+
+ggplot(g, aes(x=Age, y=month, col = Age)) +
+  geom_line() +
+  geom_jitter(data = DATA)
+```
+
+
+```{r, message=F}
+ggplot(DATA, aes(x=Stringency_Index, y=week, col = Stringency_Index)) +
+  geom_jitter() + 
+    geom_smooth()
+
+
+ggplot(DATA, aes(x=Stringency_Index, y=month, col = Stringency_Index)) +
+  geom_jitter() + 
+    geom_smooth()
+
+ggplot(DATA, aes(x=Age, y=week, col = Stringency_Index)) +
+  geom_jitter() + 
+    geom_smooth()
+
+ggplot(DATA, aes(x=Age, y=month, col = Stringency_Index)) +
+  geom_jitter() + 
+    geom_smooth()
+
+```
