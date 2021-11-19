@@ -5,7 +5,6 @@ params:
   ExperimentName: null
   ExperimentID: null
   Session: null    
-  datadir: '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
 output:
   html_notebook:
     code_folding: hide
@@ -48,7 +47,7 @@ source('helpers.R')
 
 # Loading data from DB
 ```{r}
-alldata <- gimmeRdata(DataDir = datadir, fast = T, progress = T, as.list = T)
+alldata <- gimmeRdata(DataDir = dirBlursday, fast = T, progress = T, as.list = T)
 ```
 
 ## finished tasks
@@ -210,6 +209,7 @@ TaskOrder <- all_endedtasks %>%
   group_by(Country,Session, Participant_Private_ID) %>%
   arrange(UTC_Date) %>%
   mutate(i = 1:n(), .before = 1) %>%
+  # mutate(Run = ifelse(Run == "", "1", Run)) %>%
   pivot_wider(id_cols = c(Country, Session, Participant_Private_ID), names_from = i, values_from = Unique_Name) %>%
   arrange(Country,Session)
 
