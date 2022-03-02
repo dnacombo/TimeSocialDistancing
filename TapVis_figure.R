@@ -69,7 +69,9 @@ prepro <- function(orig) {
     ungroup() %>%
     select(all_of(c("country_name", "country", "session", "unique_name", "run", "pid", "event_index",
                     "experiment_id", "zone_type", "reaction_time", "response", "randomise_blocks",
-                    "display", "disp_type", "stringency_index", "n_stims", "n_taps", "tap_nbr",
+#                    "display", "disp_type", "stringency_index", "n_stims", "n_taps", "tap_nbr",
+                    "display", "disp_type", "n_stims", "n_taps", "tap_nbr",
+                    "participant_os", "participant_browser",
                     "handedness", "sex", "age", "randomise_order", "Stim", "Tap", "ITI")))
 
   return(data_prepro)
@@ -78,21 +80,38 @@ prepro <- function(orig) {
 # Files loading and appending ----------------------------------------------------------------------------------------
 data_prepro_tbl = NULL
 for (c in Countries) {
-  filename <- list.files(path = here("data"),
-                         pattern = paste0("data-", params$ExperimentName, "_", c, "_*.*"))
+#  filename <- list.files(path = here("data"),
+  filename <- list.files(path = here("Data_analysis/data"),
+                pattern = paste0("data-", params$ExperimentName, "_", c, "_*.*"))
   cat("---\n")
   cat(paste0(c,'\n'))
-  cat(paste0(here("data", filename),'\n'))
-  load(here("data", filename))
+#  cat(paste0(here("data", filename),'\n'))
+#  load(here("data", filename))
+  cat(paste0(here("Data_analysis/data", filename),'\n'))
+  load(here("Data_analysis/data", filename))
   data_prepro_country <- prepro(TSDdata) # ITI calculation
   data_prepro_tbl <- rbind(data_prepro_tbl, data_prepro_country)
 }
 
-# Participantes que fallan en FR -----------------------------------------------
-data_prepro_tbl <- data_prepro_tbl %>%
-  filter(pid != 1292928) %>%
-  filter(pid != 1381670)
+# # Make OS and browser names uniform
+# data_prepro_tbl <- data_prepro_tbl %>%
+#   mutate(Operating_System = case_when(grepl("Windows",participant_os) ~ "Windows",
+#                                       grepl("Mac",participant_os) ~ "Mac",
+#                                       grepl("Linux",participant_os) | grepl("Ubuntu",participant_os) ~ "Linux",
+#                                       TRUE ~ "Other"),
+#          Browser = case_when(grepl("Chrome",participant_browser) ~ "Chrome",
+#                              grepl("Firefox",participant_browser) ~ "Firefox",
+#                              grepl("Edge",participant_browser) ~ "Edge",
+#                              TRUE ~ "Other"))
 
+# Participants failing -----------------------------------------------
+data_prepro_tbl <- data_prepro_tbl %>%
+  # FR
+  filter(pid != 1292928) %>%
+  filter(pid != 1381670) %>%
+  # JP
+  filter(pid != 4072160)
+  
 # Outliers glitches ------------------------------------------------------------
 outliers_glitches_synch <- data_prepro_tbl %>%
   filter(
@@ -296,6 +315,49 @@ summAsyn <- summAsyn_trial %>%
   summarise(m_asyn = median(m_asyn)) %>%
   ungroup()
 
+# get info about OS and Browser
+aux_Asyn_os_browser <- data_prepro_tbl %>%
+  group_by(country, session, display, pid) %>%
+  # Make OS and browser names uniform
+  summarise(Operating_System = case_when(first(grepl("Windows",participant_os)) ~ "Windows",
+                                         first(grepl("Mac",participant_os)) ~ "Mac",
+                                         first(grepl("Linux",participant_os) | grepl("Ubuntu",participant_os)) ~ "Linux",
+                                         TRUE ~ "Other"),
+            Browser = case_when(first(grepl("Chrome",participant_browser)) ~ "Chrome",
+                                first(grepl("Firefox",participant_browser)) ~ "Firefox",
+                                first(grepl("Edge",participant_browser)) ~ "Edge",
+                                TRUE ~ "Other")) %>%
+  ungroup()
+# add info about os and browser to tibble
+summAsyn_os_browser <- inner_join(summAsyn, aux_Asyn_os_browser, by=c("country", "session", "display", "pid"))
+summAsyn_os_browser <- filter(summAsyn_os_browser, display=="InSync")
+
+# Summary OS
+#summAsyn_os <- summAsyn_trial_os_browser %>%
+summAsyn_os <- summAsyn_os_browser %>%
+  group_by(Operating_System) %>%
+  summarise(meanmAsyn = mean(m_asyn), # mean across trials of mean trial asynchrony
+            sterrmAsyn = stats::sd(m_asyn, na.rm=TRUE)/sqrt(n()),
+            N = n()) %>%
+  ungroup()
+# Reorder factor levels
+summAsyn_os$Operating_System <- factor(summAsyn_os$Operating_System,
+                                      c("Windows", "Mac", "Linux", "Other"))
+
+# Summary Browser
+#summAsyn_browser <- summAsyn_trial_os_browser %>%
+summAsyn_browser <- summAsyn_os_browser %>%
+  group_by(Browser) %>%
+  summarise(meanmAsyn = mean(m_asyn), # mean across trials of mean trial asynchrony
+            sterrmAsyn = stats::sd(m_asyn, na.rm=TRUE)/sqrt(n()),
+            N = n()) %>%
+  ungroup()
+# Reorder factor levels
+summAsyn_browser$Browser <- factor(summAsyn_browser$Browser,
+                                       c("Chrome", "Firefox", "Edge", "Other"))
+
+
+
 # n by country and session
 asyn_n_country <- summAsyn %>%
   group_by(country, session, display) %>%
@@ -312,7 +374,7 @@ asyn_n_session <- summAsyn %>%
 # ITI - Free tapping -----------------------------------------------------------
 # Summary by country, session and pid
 summITI_trial <- data_prepro_tbl %>%
-  filter( disp_type=="cont") %>%
+  filter(disp_type=="cont") %>%
   filter(between(ITI, 1, 5000)) %>%
   group_by(country, session, display, pid, randomise_blocks) %>%
   summarise(mITI = median(ITI),
@@ -333,6 +395,33 @@ summITI <- summITI_trial %>%
   group_by(country, session, display, pid) %>%
   summarise(mITI = median(mITI)) %>%
   ungroup()
+
+# add info about OS and Browser
+summITI_os_browser <- inner_join(summITI, aux_Asyn_os_browser, by=c("country", "session", "display", "pid"))
+summITI_os_browser <- filter(summITI_os_browser, display=="InSync_Cont")
+
+# Summary OS
+summITI_os <- summITI_os_browser %>%
+  group_by(Operating_System) %>%
+  summarise(meanmITI = mean(mITI),
+            sterrmITI = stats::sd(mITI, na.rm=TRUE)/sqrt(n()),
+            N = n()) %>%
+  ungroup()
+# Reorder factor levels
+summITI_os$Operating_System <- factor(summITI_os$Operating_System,
+                                       c("Windows", "Mac", "Linux", "Other"))
+
+# Summary Browser
+summITI_browser <- summITI_os_browser %>%
+  group_by(Browser) %>%
+  summarise(meanmITI = mean(mITI),
+            sterrmITI = stats::sd(mITI, na.rm=TRUE)/sqrt(n()),
+            N = n()) %>%
+  ungroup()
+# Reorder factor levels
+summITI_browser$Browser <- factor(summITI_browser$Browser,
+                                   c("Chrome", "Firefox", "Edge", "Other"))
+
 
 # n by country and session
 ITI_n_country <- summITI %>%
@@ -513,4 +602,75 @@ p2_paper_asyn  <- summAsyn %>%
         plot.margin = margin(t = 6, r = 0, b = 0, l = 0, unit = "pt"))
 
 fig_paper_synchronization <- p2_paper_asyn / p1_paper_asyn + plot_layout(heights = c(1, 2))
+
+
+
+# Supplementary Figure: split by OS and Browser
+# All sessions, countries, etc
+p1_supp_Asynqty_browser <- summAsyn_browser %>%
+  ggplot(aes(x=Browser, y=N, label=N)) + 
+  geom_bar(stat="identity") + 
+  geom_label(size=3) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(title="Split by Browser", y="Count")
+
+p1_supp_Asynqty_os <- summAsyn_os %>%
+  ggplot(aes(x=Operating_System, y=N, label=N)) + 
+  geom_bar(stat="identity") + 
+  geom_label(size=3) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(title="Split by OS", y="Count")
+
+p1_supp_Asynvalue_browser <- summAsyn_browser %>%
+  ggplot(aes(x=Browser, y=meanmAsyn, fill=Browser)) + 
+  geom_bar(stat="identity") + 
+  geom_linerange(aes(ymin=meanmAsyn-sterrmAsyn, ymax=meanmAsyn+sterrmAsyn, colour=Browser)) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(y="mean trial Asynchrony (ms)")
+
+p1_supp_Asynvalue_os <- summAsyn_os %>%
+  ggplot(aes(x=Operating_System, y=meanmAsyn, fill=Operating_System)) + 
+  geom_bar(stat="identity") + 
+  geom_linerange(aes(x=Operating_System, ymin=meanmAsyn-sterrmAsyn, ymax=meanmAsyn+sterrmAsyn, colour=Operating_System)) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(y="mean trial Asynchrony (ms)")
+
+
+p1_supp_ITI_qty_browser <- summITI_browser %>%
+  ggplot(aes(x=Browser, y=N, label=N)) + 
+  geom_bar(stat="identity") + 
+  geom_label(size=3) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(title="Split by Browser", y="Count")
+
+p1_supp_ITI_qty_os <- summITI_os %>%
+  ggplot(aes(x=Operating_System, y=N, label=N)) + 
+  geom_bar(stat="identity") + 
+  geom_label(size=3) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(title="Split by OS", y="Count")
+
+p1_supp_ITI_value_browser <- summITI_browser %>%
+  ggplot(aes(x=Browser, y=meanmITI, fill=Browser)) + 
+  geom_bar(stat="identity") + 
+  geom_linerange(aes(ymin=meanmITI-sterrmITI, ymax=meanmITI+sterrmITI, colour=Browser)) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(y="median trial ITI (ms)")
+
+p1_supp_ITI_value_os <- summITI_os %>%
+  ggplot(aes(x=Operating_System, y=meanmITI, fill=Operating_System)) + 
+  geom_bar(stat="identity") + 
+  geom_linerange(aes(x=Operating_System, ymin=meanmITI-sterrmITI, ymax=meanmITI+sterrmITI, colour=Operating_System)) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(y="median trial ITI (ms)")
+
+
 
