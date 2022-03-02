@@ -28,18 +28,74 @@ knitr::opts_chunk$set(echo = TRUE,
 
 ```{r}
 pacman::p_load(tidyverse, ggdist, ggpubr, rcartocolor, ggtext, patchwork, here, 
-               countrycode, janitor, Routliers, colorspace, pracma, mclust, lme4, patchwork)
+               countrycode, janitor, Routliers, colorspace, pracma, mclust, lme4,
+               lmerTest, patchwork)
 
-source(here('code/tapping_aux_functions.R'))
-source(here('paper/Tapping_figure.R'))
-source(here('paper/TapVis_figure.R'))
+source(here('Data_analysis/code/tapping_aux_functions.R'))
+source(here('Data_analysis/paper/Tapping_figure.R'))
+source(here('Data_analysis/paper/TapVis_figure.R'))
 
+
+# MAIN FIGURE
 fig_paper <- fig_paper_free_tapping | fig_paper_synchronization | fig_paper_continuation
 fig_paper
+ggsave(here('Data_analysis/paper/fig_paper.eps'), plot=fig_paper,
+       width = 15, height = 15, units = "cm")
+#ggsave(here('pruebas/fig_paper.png'), dpi = 300, width = 15, height = 15, units = "cm")
+#ggsave(here('pruebas/fig_paper.pdf'), width = 15, height = 15, units = "cm")
 
-ggsave(here('paper/fig_paper.png'), dpi = 300, width = 15, height = 15, units = "cm")
-ggsave(here('paper/fig_paper.pdf'), width = 15, height = 15, units = "cm")
-ggsave(here('paper/fig_paper.eps'), width = 15, height = 15, units = "cm")
+
+# SUPP FIGURE: ITI(Tapping) vs OS and Browser
+p1_supp_ITIfree <- ((p1_supp_ITIfree_qty_browser | p1_supp_ITIfree_value_browser) /
+              (p1_supp_ITIfree_qty_os | p1_supp_ITIfree_value_os)) +
+              plot_annotation(title="Effect of computer environment on the Tapping task")
+p1_supp_ITIfree
+ggsave(here('Data_analysis/paper/fig_supp_ITIfree_os_paper.eps'), plot=p1_supp_ITIfree,
+       width = 25, height = 13, units = "cm")
+
+
+# SUPP FIGURE: Asyn(TapVis) vs OS and Browser
+p1_supp_Asyn <- ((p1_supp_Asynqty_browser | p1_supp_Asynvalue_browser) /
+              (p1_supp_Asynqty_os | p1_supp_Asynvalue_os)) +
+              plot_annotation(title="Effect of computer environment on the TapVis task (synchronization)")
+p1_supp_Asyn
+ggsave(here('Data_analysis/paper/fig_supp_Asyn_os_paper.eps'), plot=p1_supp_Asyn,
+width = 25, height = 13, units = "cm")
+
+
+# SUPP FIGURE: ITI(TapVis) vs OS and Browser
+p1_supp_ITI <- ((p1_supp_ITI_qty_browser | p1_supp_ITI_value_browser) /
+              (p1_supp_ITI_qty_os | p1_supp_ITI_value_os)) +
+              plot_annotation(title="Effect of computer environment on the TapVis task (continuation)")
+p1_supp_ITI
+ggsave(here('Data_analysis/paper/fig_supp_ITI_os_paper.eps'), plot=p1_supp_ITI,
+       width = 25, height = 13, units = "cm")
+
+
+# testing OS and Browser effects
+# (no interaction term because no all OS/Browser combinations are available)
+summITI_free_os_browser <- mutate_at(summITI_free_os_browser,
+                                    vars(Operating_System, Browser, pid), as.factor)
+model_ITIfree <- lmer(mITI ~ Operating_System + Browser + (1|pid),
+                                    data=summITI_free_os_browser)
+summITIfree_fit <- anova(model_ITIfree)
+
+summAsyn_os_browser <- mutate_at(summAsyn_os_browser,
+                                    vars(Operating_System, Browser, pid), as.factor)
+model_Asyn <- lmer(m_asyn ~ Operating_System + Browser + (1|pid),
+                                    data=summAsyn_os_browser)
+summAsyn_fit <- anova(model_Asyn)
+
+summITI_os_browser <- mutate_at(summITI_os_browser,
+                                    vars(Operating_System, Browser, pid), as.factor)
+model_ITI <- lmer(mITI ~ Operating_System + Browser + (1|pid),
+                                    data=summITI_os_browser)
+summITI_fit <- anova(model_ITI)
+
+summITIfree_fit
+summAsyn_fit
+summITI_fit
+
 
 ```
 
