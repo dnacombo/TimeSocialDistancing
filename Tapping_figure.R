@@ -54,15 +54,19 @@ ITIs_free <- function(orig) {
 # Files loading and appending
 ITI_tbl = NULL
 for (c in Countries) {
-  filename <- list.files(path = here("data"),
+#  filename <- list.files(path = here("data"),
+  filename <- list.files(path = here("Data_analysis/data"),
                          pattern = paste0("data-", params$ExperimentName, "_", c, "_*.*"))
   cat("---\n")
   cat(paste0(c,'\n'))
-  cat(paste0(here("data", filename),'\n'))
-  load(here("data", filename))
+#  cat(paste0(here("data", filename),'\n'))
+#  load(here("data", filename))
+  cat(paste0(here("Data_analysis/data", filename),'\n'))
+  load(here("Data_analysis/data", filename))
   ITIs_country <- ITIs_free(TSDdata) # ITI calculation
   ITI_tbl <- rbind(ITI_tbl, ITIs_country)
 }
+
 
 # Calculate median ITI per trial and filtering greater than 1 and smaller than 5000 (5s).
 # Counting how many ITIs smaller than 50ms (button kept pressed) there are and discarding
@@ -70,14 +74,15 @@ for (c in Countries) {
 summITI_free_trial <- ITI_tbl %>%
   filter(between(ITI, 1, 5000)) %>%
   group_by(country, session, pid, run) %>%
-  summarise(mITI = median(ITI),
+  summarise(meanITI = mean(ITI),
+            mITI = median(ITI),
             n_low = sum(ITI<50)) %>%
   filter(n_low < 30) %>%
   ungroup()
 
+
 # Outlier detection
 outliersITI <- outliers_mad(x = summITI_free_trial$mITI)
-
 summITI_free_trial <- summITI_free_trial %>%
   filter(between(mITI, outliersITI$limits[1], outliersITI$limits[2]) )
 
@@ -86,6 +91,48 @@ summITI_free <- summITI_free_trial %>%
   group_by(country, session, pid) %>%
   summarise(mITI = median(mITI)) %>%
   ungroup()
+
+
+# get info about OS and Browser
+#aux_ITI_os_browser <- data_prepro_tbl %>%
+aux_ITI_os_browser <- ITI_tbl %>%
+  #  group_by(country, session, display, pid) %>%
+  group_by(country, session, pid) %>%
+  # Make OS and browser names uniform
+  summarise(Operating_System = case_when(first(grepl("Windows",participant_os)) ~ "Windows",
+                                         first(grepl("Mac",participant_os)) ~ "Mac",
+                                         first(grepl("Linux",participant_os) | grepl("Ubuntu",participant_os)) ~ "Linux",
+                                         TRUE ~ "Other"),
+            Browser = case_when(first(grepl("Chrome",participant_browser)) ~ "Chrome",
+                                first(grepl("Firefox",participant_browser)) ~ "Firefox",
+                                first(grepl("Edge",participant_browser)) ~ "Edge",
+                                TRUE ~ "Other")) %>%
+  ungroup()
+# add info about os and browser to tibble
+summITI_free_os_browser <- inner_join(summITI_free, aux_ITI_os_browser, by=c("country", "session", "pid"))
+
+# Summary OS
+summITI_free_os <- summITI_free_os_browser %>%
+  group_by(Operating_System) %>%
+  summarise(meanmITI = mean(mITI), # mean across trials of mean trial asynchrony
+            sterrmITI = stats::sd(mITI, na.rm=TRUE)/sqrt(n()),
+            N = n()) %>%
+  ungroup()
+# Reorder factor levels
+summITI_free_os$Operating_System <- factor(summITI_free_os$Operating_System,
+                                       c("Windows", "Mac", "Linux", "Other"))
+
+# Summary Browser
+summITI_free_browser <- summITI_free_os_browser %>%
+  group_by(Browser) %>%
+  summarise(meanmITI = mean(mITI), # mean across trials of mean trial asynchrony
+            sterrmITI = stats::sd(mITI, na.rm=TRUE)/sqrt(n()),
+            N = n()) %>%
+  ungroup()
+# Reorder factor levels
+summITI_free_browser$Browser <- factor(summITI_free_browser$Browser,
+                                   c("Chrome", "Firefox", "Edge", "Other"))
+
 
 # n by country and session
 ITI_n_country_free <- summITI_free %>%
@@ -99,6 +146,7 @@ ITI_n_session_free <- summITI_free %>%
   summarise(N = n(),
             medITI = median(mITI)) %>%
   ungroup()
+
 
 # Figure only session 1 ----
 
@@ -174,4 +222,40 @@ p2_paper_ISI <- summITI_free %>%
         plot.margin = margin(t = 6, r = 0, b = 0, l = 0, unit = "pt"))
 
 fig_paper_free_tapping <- p2_paper_ISI / p1_paper_ISI + plot_layout(heights = c(1, 2))
+
+
+# Supplementary Figure: split by OS and Browser
+# All sessions, countries, etc
+p1_supp_ITIfree_qty_browser <- summITI_free_browser %>%
+  ggplot(aes(x=Browser, y=N, label=N)) + 
+  geom_bar(stat="identity") + 
+  geom_label(size=3) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(title="Split by Browser", y="Count")
+
+p1_supp_ITIfree_qty_os <- summITI_free_os %>%
+  ggplot(aes(x=Operating_System, y=N, label=N)) + 
+  geom_bar(stat="identity") + 
+  geom_label(size=3) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(title="Split by OS", y="Count")
+
+p1_supp_ITIfree_value_browser <- summITI_free_browser %>%
+  ggplot(aes(x=Browser, y=meanmITI, fill=Browser)) + 
+  geom_bar(stat="identity") + 
+  geom_linerange(aes(ymin=meanmITI-sterrmITI, ymax=meanmITI+sterrmITI, colour=Browser)) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(y="median trial ITI free (ms)")
+
+p1_supp_ITIfree_value_os <- summITI_free_os %>%
+  ggplot(aes(x=Operating_System, y=meanmITI, fill=Operating_System)) + 
+  geom_bar(stat="identity") + 
+  geom_linerange(aes(x=Operating_System, ymin=meanmITI-sterrmITI, ymax=meanmITI+sterrmITI, colour=Operating_System)) +
+  theme(axis.title.x=element_blank(),
+        axis.ticks.x=element_blank()) +
+  labs(y="median trial ITI free (ms)")
+
 
