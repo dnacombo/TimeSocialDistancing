@@ -24,12 +24,16 @@
 
 library(tidyverse)
 library(emmeans)
-theme_set(theme_minimal())
+theme_set(theme_minimal() +
+            theme(axis.text = element_text(size = 7),
+                  title = element_text(size = 7),
+                  legend.text = element_text(size = 7),
+                  legend.key.size = unit(4,'mm')))
 options(dplyr.summarise.inform=F)
 options(gargle_oauth_email = 'maximilien.chaumon@gmail.com')
 
-dirData <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
-dirBlursday <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
+dirData <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA'
+dirBlursday <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/TSDshiny/data'
 
 Palette_Session <- c(S1 = '#FF73AD',
                          S2 = '#6BD685',
@@ -112,7 +116,7 @@ QTranslate <- function(orig) {
 TTranslate <- function(orig) {
   
   TTranslateOrMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1pDTfJUJnFoUxUbEnOSQrACg0vqSDv2czC52_6fM9Ozc/edit#gid=0') %>%
-    select(-Comment, -TimeFormat)
+    select(-Comment)
   # The tables of previously translated materials (those we recompute now will be merged with these)
   TToTranslate <- gsheet2tbl('https://docs.google.com/spreadsheets/d/16pewaHuHCu8YStxHvF9Nis_RZOB3hT4utYLm5T9DSS4/edit#gid=516354689') %>%
     select(-Comment)
@@ -120,7 +124,7 @@ TTranslate <- function(orig) {
   TToMap <- gsheet2tbl('https://docs.google.com/spreadsheets/d/1FrAebQ2Y9PQVMx-omsCbhkosmXJT371NNBWr_QhU4OU/edit#gid=36287472') %>%
     pivot_longer(cols = 4:last_col(), names_to = 'Country', values_to = 'Value')
   
-  tmp <- left_join(orig,TToTranslate, by = c('Country', 'UniqueName', 'Response' = 'Value')) %>%
+  tmp <- left_join(orig,TToTranslate, by = c('Country', Unique_Name = 'UniqueName', 'Response' = 'Value')) %>%
     mutate(Response = ifelse(is.na(Translated),Response,Translated)) %>%
     select(-(Question:last_col())) %>%
     left_join(QToMap, by = c('Country', 'UniqueName', 'Question Key', 'Response')) %>%
