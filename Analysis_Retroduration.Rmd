@@ -1,0 +1,428 @@
+---
+title: "Retrospective duration: Duration Estimation"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+---
+<!-- # This is the Blursday database paper source code. -->
+<!-- # This code was used to prepare the following article: -->
+<!-- # XXX Ref. to add XXX -->
+<!-- # -->
+<!-- # The live application of the server can be accessed at  -->
+<!-- # https://TimeSocialDistancing.shinyapps.io/Blursday/ -->
+<!-- # This code is publicly available at -->
+<!-- # https://github.com/dnacombo/TSDshiny -->
+
+<!-- #     Copyright (C) 2021  Maximilien Chaumon -->
+<!-- # -->
+<!-- #     This program is free software: you can redistribute it and/or modify -->
+<!-- #     it under the terms of the GNU General Public License as published by -->
+<!-- #     the Free Software Foundation, either version 3 of the License, or -->
+<!-- #     (at your option) any later version. -->
+<!-- # -->
+<!-- #     This program is distributed in the hope that it will be useful, -->
+<!-- #     but WITHOUT ANY WARRANTY; without even the implied warranty of -->
+<!-- #     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the -->
+<!-- #     GNU General Public License for more details. -->
+<!-- # -->
+<!-- #     You should have received a copy of the GNU General Public License -->
+<!-- #     along with this program.  If not, see <http://www.gnu.org/licenses/>. -->
+
+```{r, message=F}
+source('helpers.R')
+library(MaxPac)
+library(effectsize)
+theme_set(theme_minimal())
+
+
+suppressWarnings(dir.create('PaperFigures'))
+
+```
+
+# Reading data
+
+We read data from the `RetroDuration` questionnaire. Translate responses using QTranslate() (google sheet). Read response to the `initial_RetrospectiveDuration` question. Extract estimated duration since last login as `##:##:##` --\> Hours:Minutes:Seconds. Compute `ClockDuration` as the difference between current time and last login.
+
+Compute :
+
+-   EstimatedDuration = Estimated Magnitude = initial_RetrospectiveDuration in seconds
+-   ClockDuration = Clock time since last recorded login in seconds
+-   rEstimatedDuration = EstimatedDuration / ClockDuration
+-   EstimationError = Estmiation Error = EstimatedDuration - ClockDuration
+-   rEstimationError = EstimationError / ClockDuration
+
+```{r, message=F}
+
+load(file.path(dirBlursday,'Daily_Login_Times.RData'))
+
+# Extracting data:
+# 
+# RetroDuration <- gimmeRdata(dirBlursday, UniqueName = 'RetroDuration') %>%
+#   filter(!Country %in% c('UK','CO', 'US')) %>%
+#   QTranslate() %>%
+#   filter(Question_Key %in% c('initial_RetrospectiveDuration')) %>%
+#   mutate(Date = lubridate::date(Local_Date)) %>%
+#   pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
+#   # take only the first response if there are several ones
+#   group_by(PID,Session,Run,Country) %>%
+#   slice(1) %>%
+#   add_Demographics() %>%
+#   # For EstimatedDuration
+#   # Using 3 AM to change day
+#   mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3))) %>%
+#   left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
+#   mutate(Date = lubridate::as_date(Local_Date)) %>%
+#   mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
+#   select(Country, PID, Session, Run, Local_Date, ClockDuration, initial_RetrospectiveDuration,
+#          Handedness, Sex, Age, Date) %>%
+#   mutate(M = str_match(initial_RetrospectiveDuration,
+#                        '^.*?(\\d+).*?[:：].*?(\\d+).*?[:：].*?(\\d+).*?$'),
+#          h = suppressWarnings(as.numeric(M[,2])),
+#          m = suppressWarnings(as.numeric(M[,3])),
+#          s = suppressWarnings(as.numeric(M[,4])),
+#          EstimatedDuration = lubridate::duration(hour = h, minute = m, second = s),
+#          ClockDuration = lubridate::as.duration(ClockDuration),
+#          rEstimatedDuration = EstimatedDuration / ClockDuration,
+#          EstimationError = EstimatedDuration - ClockDuration,
+#          rEstimationError = EstimationError / ClockDuration) %>%
+#   select(-M) %>% # ,-h,-m,-s
+#   ungroup()
+# 
+# save(RetroDuration, file = file.path(dirBlursday,'RetroDuration.RData'))
+
+load(file = file.path(dirBlursday,'RetroDuration.RData'))
+```
+
+# Outliers detection and clean up
+
+```{r}
+RetroDuration %>%
+  mutate(across(c(ClockDuration, EstimatedDuration, rEstimatedDuration, rEstimationError), as.numeric)) %>%
+  pivot_longer(cols = c(ClockDuration, EstimatedDuration, rEstimatedDuration, rEstimationError)) %>%
+ggplot(aes(x = value, fill = Country)) + 
+  geom_histogram(bins = 50) +
+  facet_wrap(~name ,scales = 'free') +
+  ggtitle('Measure distributions before outliers detection')
+```
+
+Distributions of `ClockDuration`, `EstimatedDuration`, `rEstimationError`, and `rEstimatedDuration` are highly skewed to the left. First capping EstimatedDuration and ClockDuration to a decent duration, then removing 5% most extreme `rEstimationError`.
+
+Rationale:
+
+-   `ClockDuration` cannot be below 60 s: no questionnaire/task can be completed under this duration, and we want at least one.
+-   `ClockDuration` cannot be above 18000 s = 5 h: subjects cannot be focused for 5h in a row.
+-   Same rationale for `EstimatedDuration`, but 5 fold more permissive (we allow EstimatedDuration up to 5 \* 18000s, and below 60 / 5 s).
+-   5% Largest/smallest `rEstimationError` is systematically discarded. This is done for each Session and Country separately.
+
+We count these
+
+```{r}
+# capped_outliers:
+Duration_max <- 18000
+Duration_min <- 60
+Ratio_rejection_ClockDuration_to_EstimatedDuration <- 5
+# trim_outliers:
+probs <- c(.025, .975)
+
+
+# RetroDuration_clean <- RetroDuration %>%
+#   filter(!is.na(rEstimatedDuration), rEstimatedDuration != 0)
+# nrowsbefore_outliers <- nrow(RetroDuration_clean)
+# RetroDuration_clean <- RetroDuration_clean %>%
+#   group_by(Country,Session) %>%
+#   mutate(outliers = ClockDuration > Duration_max | ClockDuration < Duration_min | EstimatedDuration > Duration_max * Ratio_rejection_ClockDuration_to_EstimatedDuration | EstimatedDuration < Duration_min / Ratio_rejection_ClockDuration_to_EstimatedDuration) %>%
+#   filter(!outliers) %>%
+#   mutate(outliers = find.outliers(rEstimationError,meth = 'trim', probs = probs)) %>%
+#   filter(!outliers) %>%
+#   ungroup() %>% select(-outliers)
+# nrowsafter_outliers <- nrow(RetroDuration_clean)
+# 
+# cat('Global proportion of outliers', prop_outliers_global <- 1 - nrowsafter_outliers / nrowsbefore_outliers)
+# 
+# save(RetroDuration_clean, file = file.path(dirBlursday,'RetroDuration_clean.RData'))
+load(file.path(dirBlursday,'RetroDuration_clean.RData'))
+
+RetroDuration_clean %>%
+  group_by(Country,Session) %>%
+  mutate(across(c(ClockDuration, EstimatedDuration, rEstimatedDuration, rEstimationError), as.numeric)) %>%
+  pivot_longer(cols = c(ClockDuration, EstimatedDuration, rEstimatedDuration, rEstimationError)) %>%
+ggplot(aes(x = value, fill = Country)) + 
+  geom_histogram(bins = 50) +
+  facet_wrap(~name ,scales = 'free') +
+  ggtitle('Measure distributions after outliers detection')
+```
+
+## Subjects Count after outlier rejection
+
+```{r}
+
+RetroDuration_clean %>% group_by(Country, Session) %>%
+  summarize(n = n())
+
+
+```
+
+# ratio rEstimatedDuration = EstimatedDuration / ClockDuration
+
+## Focus on S1 vs. SC comparison
+
+```{r}
+load(file = file.path(dirBlursday, 'RetroDuration_clean.RData'))
+
+tostat <- RetroDuration_clean %>% 
+  group_by(Country, PID, Session) %>%
+  select(Country,PID, Session, Local_Date,EstimatedDuration, rEstimatedDuration, EstimationError, Age, Sex, Handedness, ClockDuration) %>%
+  filter(Session %in% c('S1','SC')) %>%
+  summarize(Local_Date = unique(Local_Date),
+            EstimationError = mean(EstimationError) / 60,
+            ClockDuration = mean(ClockDuration) / 60,
+            EstimatedDuration = mean(EstimatedDuration) / 60,
+            rEstimatedDuration = mean(rEstimatedDuration),
+            rEstimationError = mean(EstimationError/ClockDuration),
+            Age = unique(Age)) %>%
+  mutate(logrEstimatedDuration = log10(rEstimatedDuration)) %>%
+  add_SubjectiveConfinementIndices() %>%
+  add_StringencyIndex() %>%
+  add_TimeOfDay()
+
+N <- tostat %>%
+  group_by(Session) %>%
+  summarize(N = n())
+```
+
+
+#### Model log(EstimatedDuration) = f(log(ClockDuration))
+
+```{r}
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session, data = tostat)
+plot(m)
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+confint(m)
+```
+
+```{r}
+
+(fig1a <- emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 20))) %>%
+   summary(type = 'response') %>%
+   ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Session, group = Session)) +
+   geom_abline(slope = 1) +
+   geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .5, size = 1, data = tostat) +
+   geom_line(size = 1) +
+   geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
+   scale_x_log10() +
+   scale_y_log10() +
+   ylab('Duration Estimate (min)') +
+   xlab('Clock Duration (min)') +
+   scale_fill_manual(values = Palette_SessionS1SC) +
+   scale_color_manual(values = Palette_SessionS1SC))
+
+
+```
+
+```{r}
+summary(m)
+
+summary(emtrends(m,~Session, 'log10(ClockDuration)', infer = T, offset = -1, adjust = 'tukey'))
+
+anova(m)
+
+qqnorm(residuals(m))
+
+effectsize::eta_squared(m)
+
+summary(emmeans(m,~ClockDuration+Session,at = list(ClockDuration = c(10,30,60))),type = 'response') %>%
+  mutate(ClockDuration = lubridate::as.duration(ClockDuration * 60),
+         SE = SE * 60,
+         response = lubridate::as.duration(response * 60))
+
+
+summary(emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(15,20, by = .1))),type = 'response') %>%
+  mutate(ClockDuration = lubridate::as.duration(ClockDuration * 60),
+         response = lubridate::as.duration(response * 60),
+         identity = response - ClockDuration) %>%
+  group_by(Session) %>%
+  filter(abs(identity) == min(abs(identity))) %>%
+  select(-response)
+
+summary(emmeans(m,~ClockDuration, at = list(ClockDuration = seq(15,20, by = .1))),type = 'response') %>%
+  mutate(ClockDuration = lubridate::as.duration(ClockDuration * 60),
+         response = lubridate::as.duration(response * 60),
+         identity = response - ClockDuration) %>%
+  filter(abs(identity) == min(abs(identity))) %>%
+  select(-response)
+
+
+tostat %>% group_by(Session) %>% summarize(mean_ClockDuration = mean(ClockDuration))
+
+
+```
+
+
+### Effect of age and Hour of day
+
+```{r}
+tostat %>%
+  ggplot(aes(x=Age,y = after_stat(ncount), fill = Session)) +
+  geom_histogram(position = 'dodge') +
+  scale_fill_manual(values = Palette_SessionS1SC) +
+  scale_color_manual(values = Palette_SessionS1SC) +
+  ylab('normalized count')
+```
+
+## All data and sessions
+
+We first insert all covariates in the data, looking at all sessions, now.
+```{r}
+load(file = file.path(dirBlursday, 'RetroDuration_clean.RData'))
+
+tostat <- RetroDuration_clean %>% 
+  group_by(Country, PID, Session) %>%
+  select(Country,PID, Session, Local_Date, EstimatedDuration, rEstimatedDuration, EstimationError, Age, Sex, Handedness, ClockDuration) %>%
+  filter(!is.na(rEstimatedDuration), rEstimatedDuration != 0) %>%
+  summarize(n = n(),
+            Local_Date = unique(Local_Date),
+            EstimatedDuration = mean(EstimatedDuration),
+            rEstimatedDuration = mean(rEstimatedDuration),
+            rEstimationError = mean(EstimationError/ClockDuration),
+            EstimationError = mean(EstimationError),
+            ClockDuration = mean(ClockDuration),
+            Age = unique(Age)) %>%
+  mutate(logrEstimatedDuration = log10(rEstimatedDuration)) %>%
+  add_SubjectiveConfinementDuration() %>%
+  add_SubjectiveConfinementIndices() %>%
+  add_Mobility() %>%
+  add_StringencyIndex() %>%
+  add_TimeOfDay()
+
+(N <- tostat %>%
+  group_by(Session) %>%
+  summarize(N = n()))
+```
+
+### Modeling
+
+Subjects were repeatedly tested in S1-S4, and a different pool of subjects were tested in SC.
+We thus try to see if the error related to subjects in the intercept of EstimatedDuration is worth modeling as a random effect.
+The standard deviation of the estimated random effects is much smaller than that of the residuals, suggesting that random effects can be ignored in this case.
+
+```{r}
+
+m <- lmerTest::lmer(log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3) +  (1 | PID), data = tostat )
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+```
+
+Indeed, running a simple lm on the data with the same fixed effects retrieves the same effects.
+
+```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+
+plot(m)
+
+
+```
+
+Same reasoning with Mobility_Transit:
+
+```{r}
+m <- lmerTest::lmer(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  poly(Hour_Of_Day,3) + (1 | PID), data = tostat )
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+```
+
+Indeed, running a simple lm on the data with the same fixed effects retrieves the same effects.
+
+```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+confint(m)
+plot(m)
+
+
+```
+### Illustrating
+
+#### Stringency Index
+
+```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
+
+em <- summary(emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(20,100,by = 20))), type = 'response')
+
+(fig1b <- ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_jitter(alpha = .3, size = 1) +
+  geom_line(aes(y=response), col = 'black', data = em) +
+  geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
+  scale_y_log10( limits = c(.3,3)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
+  ylab('Relative Duration Estimate') +
+  xlab('Stringency Index'))
+
+```
+#### Mobility Transit
+
+```{r}
+
+em <- summary(emmeans(m, ~ Mobility_Transit, at = list(Mobility_Transit = seq(-100,25,by = 10))), type = 'response')
+
+(fig1c <- ggplot(aes(x = Mobility_Transit,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_jitter(alpha = .3, size = 1) +
+  geom_line(aes(y=response), col = 'black', data = em) +
+  geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
+  scale_y_log10( limits = c(.3,3)) +
+  scale_fill_manual(values = Palette_Session) +
+  scale_color_manual(values = Palette_Session) +
+  ylab('Relative Duration Estimate') +
+  xlab('Mobility Index'))
+
+```
+Other mobility measures have little effect on rEstimatedDuration
+```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Mobility_Retail + Mobility_Parks + Mobility_WorkPlaces + Mobility_Residential + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+
+plot(m)
+
+
+```
+
+
+#### Time Of Day
+
+# Figure1 final
+```{r}
+library(patchwork)
+layout <- "
+A
+B
+B"
+
+fig1a / (fig1b / fig1c + plot_layout(guides = 'collect')) + plot_layout(design = layout) + plot_annotation(tag_levels = 'a') & theme(plot.tag = element_text(face = 'bold'))
+
+imagefile = 'PaperFigures/Fig1.pdf'
+ggsave(
+  basename(imagefile),
+  plot = last_plot(),
+  device = 'pdf',
+  width = 89,
+  height = 150,
+  path = dirname(imagefile),
+  units = 'mm',
+  bg = "white"
+)
+
+```
+

@@ -1,0 +1,378 @@
+---
+title: "Analysis Temporal orientation to past and future"
+output:
+  html_document:
+    df_print: paged
+    toc: yes
+---
+
+# load packages
+```{r, message=F}
+source('helpers.R')
+library(lmerTest)
+library(MaxPac)
+library(effectsize)
+theme_set(theme_minimal())
+
+
+
+Palette_histogram <- RColorBrewer::brewer.pal(7, "Greens")[c(7,3)]
+
+Palette_Session <- c(S1 = '#FF73AD',
+                     S2 = '#6BD685',
+                     S3 = '#BCE4C6', 
+                     S4 = '#FCC0D9',
+                     SC = '#8E8C8C')
+Palette_SessionS1SC <- Palette_Session[names(Palette_Session) %in% c('S1','SC')]
+Palette_Mobility_Transit <- c(high = '#9D83EF', low = '#CFC0FF')
+Palette_Stringency_Index <- c(high = '#FFD45B', low = '#F7ECCD')
+```
+
+# Confinement Tracker
+## load data
+
+```{r}
+load('ConfinementTracker.Rdata')
+
+```
+
+## model
+```{r}
+mylm <- lmerTest::lmer(SubjConfinementDistance ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  poly(Hour_Of_Day,3) + (1|PID), data = tostat)
+summary(mylm)
+
+anova(mylm)
+
+effectsize::eta_squared(mylm)
+confint(mylm)
+
+
+```
+
+
+```{r}
+ema <- summary(emmeans(mylm,~ Mobility_Transit, at = list(Mobility_Transit = seq(-90,0,5)))) %>%
+  mutate(SubjConfinementDistance = emmean,
+         LCL = asymp.LCL,
+         UCL = asymp.UCL)
+
+emb <- summary(emmeans(mylm,~ Subjective_Confinement, at = list(Subjective_Confinement = 5:20))) %>%
+  mutate(SubjConfinementDistance = emmean,
+         LCL = asymp.LCL,
+         UCL = asymp.UCL)
+
+```
+
+## panel a
+```{r}
+
+(fig3a <- ggplot(tostat %>%
+                   mutate(Mobility_Transit = as.numeric(as.character(cut(Mobility_Transit,breaks = seq(-90,0,5), labels = seq(-90,-5,5) + 2.5)))) %>%
+                   group_by(Mobility_Transit) %>%
+                   mutate(meanSubjConfinementDistance = mean(SubjConfinementDistance),
+                          n = n()),
+                 aes(x = Mobility_Transit, y = SubjConfinementDistance)) +
+    geom_point(data = tostat, col = 'grey', size = .5) +
+    geom_line(data = ema) +
+    # geom_point(col='green',data = em2) +
+    geom_ribbon(mapping = aes(ymin = LCL, ymax = UCL),col = NA, alpha = .2,data = ema) +
+    geom_point(aes(y = meanSubjConfinementDistance, size = n), col = 'black', show.legend = F) +
+    xlab('Mobility Index') +
+    ylab('Subjective Distance\nto First Day in Lockdown') +
+    scale_size_area(max_size = 2.5)
+)
+
+```
+
+## panel b
+```{r}
+(fig3b <- ggplot(tostat %>%
+                   group_by(Subjective_Confinement) %>%
+                   mutate(meanSubjConfinementDistance = mean(SubjConfinementDistance),
+                          n = n()),
+                 aes(x = Subjective_Confinement, y = SubjConfinementDistance)) +
+    geom_jitter(data = tostat, width = .1, col = 'grey', size = .5) +
+    geom_line(data = emb) +
+    # geom_point(col='green',data = em2) +
+    geom_ribbon(mapping = aes(ymin = LCL, ymax = UCL),col = NA, alpha = .2,data = emb) +
+    geom_point(aes(y = meanSubjConfinementDistance, size = n/5), col = 'black', show.legend = F) +
+    xlab('Subjective Confinement') +
+    ylab('Subjective Distance\nto First Day in Lockdown') +
+    annotate("text", x = 4, y = -20, hjust = 0, vjust = 1, label = 'feeling\nlonely', size = 2) +
+    annotate("text", x = 21, y = -20, hjust = 1, vjust = 1, label = 'not feeling\nlonely', size = 2) +
+    coord_cartesian(xlim = c(5,20),ylim = c(0, 100), clip = "off")  +
+    scale_size_area(max_size = 2.5)
+)
+
+
+
+```
+
+# Subj Temporal Distance 
+## load data
+```{r, message=F}
+load('SubjTemporalDistance.rdata')
+
+
+# get the relevant fields from the gorilla output
+DATA <- TSDdata %>% 
+  mutate(Hour_Of_Day = lubridate::hour(Local_Date),
+         Time_Of_Day = cut(Hour_Of_Day, breaks = c(0,6,12,18,24), labels = c('night', 'morning', 'afternoon', 'evening'))) %>% 
+  select(Country, PID, Participant_Private_ID, Session, Run, Question_Key, Response, Local_Date, Age, Reported_Loneliness,   Felt_Loneliness, Stringency_Index, Subjective_Confinement, ConfDuration, Mobility_Transit, Hour_Of_Day) %>% 
+  filter(Question_Key == 'SubjectiveTemporalDistance_Week' | Question_Key == 'SubjectiveTemporalDistance_Month' | Question_Key == 'SubjectiveTemporalDistance_month') %>% 
+  mutate(Question_Key = str_to_lower(Question_Key)) %>% 
+  distinct() %>% 
+  pivot_wider(names_from = "Question_Key", 
+              values_from = "Response") %>% # , values_fn = length
+  rename('Week'  = 'subjectivetemporaldistance_week', 'Month' = 'subjectivetemporaldistance_month') %>% 
+  mutate(Week = as.numeric(Week), Month = as.numeric(Month)) %>% 
+  filter(Session %in% c("S1", "S2", "S3", "S4", "SC"))
+
+# filter out NANs in the responses (Week and Month), and PP whose age is NAN or below 18
+DATA <- DATA %>%
+  filter(Age>=18 & !is.na(Month)  & !is.na(Week)) %>%
+  mutate(ratio_mw = Month/Week)
+
+rm(TSDdata)
+```
+
+### panel c
+
+```{r}
+
+# put estimates in 1 column, to compare Week and Month
+DATA2 <- DATA %>%
+  pivot_longer(cols = c(Week, Month), names_to = 'anchor', values_to = 'distance') 
+
+
+
+(fig3c <-DATA2  %>%
+    ggplot(aes(x = distance, fill = anchor)) + 
+    geom_histogram(position = "identity", alpha = 0.9, bins = 100) +
+    scale_fill_manual(values = Palette_histogram) +
+    xlab('Subjective Distance to First Day in Lockdown') +
+  theme(legend.title=element_blank()))
+```
+
+## Stats Week
+```{r, message=F}
+DATA_tostat_week <- DATA %>%
+  filter(!is.na(Week)) %>%
+  filter(!is.na(Age))
+
+m_week_RI <- lmer(Week ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age + poly(Hour_Of_Day,3) + (1|PID), data = DATA_tostat_week)
+
+summary(m_week_RI)
+anova(m_week_RI)
+
+```
+
+```{r, message=F}
+emd <- summary(emmeans(m_week_RI,~ Age, at=list(Age=seq(18, 83, by=5)))) %>%
+  mutate(Week = emmean)
+
+emf <- summary(emmeans(m_week_RI,~ Subjective_Confinement, at=list(Subjective_Confinement=seq(5, 20)))) %>%
+  mutate(Week = emmean)
+
+emh <- summary(emmeans(m_week_RI,~ Stringency_Index, at=list(Stringency_Index=seq(25, 95, by=5)))) %>%
+  mutate(Week = emmean)
+```
+
+### panel d
+
+```{r, message=F}
+(fig3d <- ggplot(DATA_tostat_week %>%
+                   mutate(Age = as.numeric(as.character(cut(Age, breaks = seq(18, 83, 5), labels = seq(18, 78, 5) + 2.5)))) %>%
+                   group_by(Age) %>%
+                   mutate(mean_week = mean(Week),
+                          n = n()),
+                 aes(x = Age, y = Week)) +
+    geom_point(data = DATA_tostat_week, col = 'grey', alpha = .5, size = .5) +
+    geom_line(data = emd) +
+    geom_ribbon(mapping = aes(ymin = lower.CL, ymax = upper.CL),col = NA, alpha = .2,data = emd) +
+    geom_point(aes(y = mean_week, size = n), shape = 21, stroke = .05, col = 'black', fill = Palette_histogram[2], show.legend = F) + 
+    ylab('Week: Further') + 
+    xlab('Age') +
+    scale_size_area(max_size = 2.5)+
+   ggtitle('Week') + theme(plot.title = element_text(hjust = .5, face = 'bold', color = Palette_histogram[2])))
+```
+
+
+### panel f
+
+```{r, message=F}
+(fig3f <- ggplot(DATA_tostat_week %>%
+                   group_by(Subjective_Confinement) %>%
+                   mutate(mean_week = mean(Week),
+                          n = n()),
+                 aes(x = Subjective_Confinement, y = Week)) +
+    geom_point(data = DATA_tostat_week, col = 'grey', alpha = .5, size = .5) +
+    geom_line(data = emf) +
+    geom_ribbon(mapping = aes(ymin = lower.CL, ymax = upper.CL),col = NA, alpha = .2,data = emf) +
+    geom_point(aes(y = mean_week, size = n), shape = 21, stroke = .05, col = 'black', fill = Palette_histogram[2], show.legend = F) +
+    ylab('Week: Further') +
+    xlab('Subjective Confinement') +
+    annotate("text", x = 4, y = -20, hjust = 0, vjust = 1, label = 'feeling\nlonely', size = 2) +
+    annotate("text", x = 21, y = -20, hjust = 1, vjust = 1, label = 'not feeling\nlonely', size = 2) +
+    coord_cartesian(xlim = c(5,20),ylim = c(0, 100), clip = "off")  +
+    scale_size_area(max_size = 2.5)
+)
+```
+
+
+### panel h
+
+```{r, message=F}
+(fig3h <- ggplot(DATA_tostat_week %>%
+                   mutate(Stringency_Index = as.numeric(as.character(cut(Stringency_Index,breaks = seq(25,95,5), labels = seq(25,90,5) + 2.5)))) %>%
+                   group_by(Stringency_Index) %>%
+                   mutate(mean_week = mean(Week),
+                          n = n()),
+                 aes(x = Stringency_Index, y = Week)) +
+    geom_point(data = DATA_tostat_week, col = 'grey', alpha = .5, size = .5) +
+    geom_line(data = emh) +
+    geom_ribbon(mapping = aes(ymin = lower.CL, ymax = upper.CL),col = NA, alpha = .2,data = emh) +
+    geom_point(aes(y = mean_week, size = n), shape = 21, stroke = .05, col = 'black', fill = Palette_histogram[2], show.legend = F) +
+    ylab('Week: Further') + 
+    xlab('Stringency Index') +
+    scale_size_area(max_size = 2.5)
+)        
+
+
+```
+
+
+
+## Stats Month
+```{r, message=F}
+DATA_tostat_month <- DATA %>%
+  filter(!is.na(Month)) %>%
+  filter(!is.na(Age))
+
+
+# LMER, random effect for PID
+m_month_RI <- lmer(Month ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age + poly(Hour_Of_Day,3) + (1|PID), data = DATA_tostat_month)
+
+summary(m_month_RI)
+anova(m_month_RI)
+
+eme <- summary(emmeans(m_month_RI,~ Age, at=list(Age=seq(18, 83, by=5)))) %>%
+  mutate(Month = emmean)
+
+emg <- summary(emmeans(m_month_RI,~ Subjective_Confinement, at=list(Subjective_Confinement=seq(5, 20)))) %>%
+  mutate(Month = emmean)
+
+emi <- summary(emmeans(m_month_RI,~ Stringency_Index, at=list(Stringency_Index=seq(25, 95, by=5)))) %>%
+  mutate(Month = emmean)
+```
+
+
+### panel e
+
+```{r, message=F}
+(fig3e <- ggplot(DATA_tostat_month %>%
+                   mutate(Age = as.numeric(as.character(cut(Age, breaks = seq(18, 83, 5), labels = seq(18, 78, 5) + 2.5)))) %>%
+                   group_by(Age) %>%
+                   mutate(mean_month = mean(Month),
+                          n = n()),
+                 aes(x = Age, y = Month)) +
+    geom_point(data = DATA_tostat_month, col = 'grey', alpha = .5, size = .5) +
+    geom_line(data = eme) +
+    geom_ribbon(mapping = aes(ymin = lower.CL, ymax = upper.CL),col = NA, alpha = .2,data = eme) +
+    geom_point(aes(y = mean_month, size = n), shape = 21, stroke = .05, col = 'black', fill = Palette_histogram[1], show.legend = F) + 
+    ylab('Month: Further') +
+    xlab('Age') +
+    scale_size_area(max_size = 2.5)+
+   ggtitle('Month') + theme(plot.title = element_text(hjust = .5, face = 'bold', color = Palette_histogram[1]))
+  )
+```
+
+### panel g
+
+```{r, message=F}
+(fig3g <- ggplot(DATA_tostat_month %>%
+                   group_by(Subjective_Confinement) %>%
+                   mutate(mean_month = mean(Month),
+                          n = n()),
+                 aes(x = Subjective_Confinement, y = Month)) +
+    geom_point(data = DATA_tostat_month, col = 'grey', alpha = .5, size = .5) +
+    geom_line(data = emg) +
+    geom_ribbon(mapping = aes(ymin = lower.CL, ymax = upper.CL),col = NA, alpha = .2,data = emg) +
+    geom_point(aes(y = mean_month, size = n), shape = 21, stroke = .05, col = 'black', fill = Palette_histogram[1], show.legend = F) +
+    ylab('Month: Further') + 
+    xlab('Subjective Confinement') +
+    annotate("text", x = 4, y = -20, hjust = 0, vjust = 1, label = 'feeling\nlonely', size = 2) +
+    annotate("text", x = 21, y = -20, hjust = 1, vjust = 1, label = 'not feeling\nlonely', size = 2) +
+    coord_cartesian(xlim = c(5,20),ylim = c(0, 100), clip = "off")  +
+    scale_size_area(max_size = 2.5)
+  )
+
+
+```
+
+
+
+### panel i
+
+```{r, message=F}
+(fig3i <- ggplot(DATA_tostat_month %>%
+                   mutate(Stringency_Index = as.numeric(as.character(cut(Stringency_Index,breaks = seq(25,95,5), labels = seq(25,90,5) + 2.5)))) %>%
+                   group_by(Stringency_Index) %>%
+                   mutate(mean_month = mean(Month),
+                          n = n()),
+                 aes(x = Stringency_Index, y = Month)) +
+    geom_point(data = DATA_tostat_month, col = 'grey', alpha = .5, size = .5) +
+    geom_line(data = emi) +
+    geom_ribbon(mapping = aes(ymin = lower.CL, ymax = upper.CL),col = NA, alpha = .2,data = emi) +
+    geom_point(aes(y = mean_month, size = n), shape = 21, stroke = .05, col = 'black', fill = Palette_histogram[1], show.legend = F) +
+    ylab('Month: Further') + 
+    xlab('Stringency Index') +
+    scale_size_area(max_size = 2.5)
+)
+```
+
+
+
+
+# Figure 3 final
+
+```{r}
+
+library(patchwork)
+
+layout <- "
+AABB
+#CC#
+DDEE
+FFGG
+HHII"
+
+
+ fig3a  + fig3b + fig3c  + fig3d + fig3e +fig3f + fig3g + fig3h + fig3i + 
+  plot_layout(design = layout) + plot_annotation(tag_levels = 'a') & theme(plot.tag = element_text(face = 'bold'))
+
+imagefile = 'PaperFigures/Fig3.pdf'
+ggsave(
+  basename(imagefile),
+  plot = last_plot(),
+  device = 'pdf',
+  width = 183,
+  height = 247,
+  path = dirname(imagefile),
+  units = 'mm',
+  bg = "white"
+)
+# imagefile = 'PaperFigures/Fig3.png'
+# ggsave(
+#   basename(imagefile),
+#   plot = last_plot(),
+#   device = 'png',
+#   width = 183,
+#   height = 247,
+#   path = dirname(imagefile),
+#   units = 'mm',
+#   bg = "white"
+# )
+
+```
+
