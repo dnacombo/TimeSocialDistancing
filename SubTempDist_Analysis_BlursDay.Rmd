@@ -23,7 +23,8 @@ source('helpers.R')
 
 ```{r, message=F}
 # load DATA from all countries jointly
-load('/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/data-SubjTemporalDistance_France-Argentina-Canada-Germany-Greece-India-Italy-Japan-Turkey_2021-11-01.rdata')
+# load('/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/data-SubjTemporalDistance_France-Argentina-Canada-Germany-Greece-India-Italy-Japan-Turkey_2022-02-17.RData')
+load('/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/data-SubjTemporalDistance_France-Argentina-Canada-Germany-Greece-India-Japan-Turkey-Italy_2021-11-12.rdata')
 head(TSDdata)
 
 
@@ -147,10 +148,19 @@ DATA_tostat <- DATA %>%
 
 m_week <- glm(Faster ~ Stringency_Index + Mobility_Transit + Age + Hour_Of_Day, family = 'binomial', data = DATA_tostat)
 plot(m_week)
+
 summary(m_week)
+
 anova(m_week, test = 'F')
 
+effectsize::eta_squared(m_week)
 
+confint(m_week)
+
+```
+
+
+```{r, message=F}
 # dichotomize responses - MONTH
 DATA_tostat <- DATA %>%
   filter(month != 50) %>%

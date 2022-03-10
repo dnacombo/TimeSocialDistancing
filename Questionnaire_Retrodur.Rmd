@@ -3,11 +3,11 @@ title: "Retrospective duration: Duration Estimation"
 params:
   ExperimentID: null
 output:
-  html_notebook:
-    code_folding: hide
-    toc: yes
   html_document:
     df_print: paged
+    code_folding: hide
+    toc: yes
+  html_notebook:
     code_folding: hide
     toc: yes
 editor_options: 
@@ -69,39 +69,39 @@ Compute :
 load(file.path(dirBlursday,'Daily_Login_Times.RData'))
 
 # Extracting data:
-
-RetroDuration <- gimmeRdata(dirBlursday, UniqueName = 'RetroDuration') %>%
-  filter(!Country %in% c('UK','CO', 'US')) %>%
-  QTranslate() %>%
-  filter(Question_Key %in% c('initial_RetrospectiveDuration')) %>%
-  mutate(Date = lubridate::date(Local_Date)) %>%
-  pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
-  # take only the first response if there are several ones
-  group_by(PID,Session,Run,Country) %>%
-  slice(1) %>%
-  add_Demographics() %>%
-  # For EstimatedDuration
-  # Using 3 AM to change day
-  mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3))) %>%
-  left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
-  mutate(Date = lubridate::as_date(Local_Date)) %>%
-  mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
-  select(Country, PID, Session, Run, Local_Date, ClockDuration, initial_RetrospectiveDuration,
-         Handedness, Sex, Age, Date) %>%
-  mutate(M = str_match(initial_RetrospectiveDuration,
-                       '^.*?(\\d+).*?[:：].*?(\\d+).*?[:：].*?(\\d+).*?$'),
-         h = suppressWarnings(as.numeric(M[,2])),
-         m = suppressWarnings(as.numeric(M[,3])),
-         s = suppressWarnings(as.numeric(M[,4])),
-         EstimatedDuration = lubridate::duration(hour = h, minute = m, second = s),
-         ClockDuration = lubridate::as.duration(ClockDuration),
-         rEstimatedDuration = EstimatedDuration / ClockDuration,
-         EstimationError = EstimatedDuration - ClockDuration,
-         rEstimationError = EstimationError / ClockDuration) %>%
-  select(-M) %>% # ,-h,-m,-s
-  ungroup()
-
-save(RetroDuration, file = file.path(dirBlursday,'RetroDuration.RData'))
+# 
+# RetroDuration <- gimmeRdata(dirBlursday, UniqueName = 'RetroDuration') %>%
+#   filter(!Country %in% c('UK','CO', 'US')) %>%
+#   QTranslate() %>%
+#   filter(Question_Key %in% c('initial_RetrospectiveDuration')) %>%
+#   mutate(Date = lubridate::date(Local_Date)) %>%
+#   pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
+#   # take only the first response if there are several ones
+#   group_by(PID,Session,Run,Country) %>%
+#   slice(1) %>%
+#   add_Demographics() %>%
+#   # For EstimatedDuration
+#   # Using 3 AM to change day
+#   mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3))) %>%
+#   left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
+#   mutate(Date = lubridate::as_date(Local_Date)) %>%
+#   mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
+#   select(Country, PID, Session, Run, Local_Date, ClockDuration, initial_RetrospectiveDuration,
+#          Handedness, Sex, Age, Date) %>%
+#   mutate(M = str_match(initial_RetrospectiveDuration,
+#                        '^.*?(\\d+).*?[:：].*?(\\d+).*?[:：].*?(\\d+).*?$'),
+#          h = suppressWarnings(as.numeric(M[,2])),
+#          m = suppressWarnings(as.numeric(M[,3])),
+#          s = suppressWarnings(as.numeric(M[,4])),
+#          EstimatedDuration = lubridate::duration(hour = h, minute = m, second = s),
+#          ClockDuration = lubridate::as.duration(ClockDuration),
+#          rEstimatedDuration = EstimatedDuration / ClockDuration,
+#          EstimationError = EstimatedDuration - ClockDuration,
+#          rEstimationError = EstimationError / ClockDuration) %>%
+#   select(-M) %>% # ,-h,-m,-s
+#   ungroup()
+# 
+# save(RetroDuration, file = file.path(dirBlursday,'RetroDuration.RData'))
 
 load(file = file.path(dirBlursday,'RetroDuration.RData'))
 ```
@@ -201,21 +201,22 @@ OutlierStats %>%
 
 
 ```{r}
-RetroDuration_clean <- RetroDuration %>%
-  filter(!is.na(rEstimatedDuration), rEstimatedDuration != 0)
-nrowsbefore_outliers <- nrow(RetroDuration_clean)
-RetroDuration_clean <- RetroDuration_clean %>%
-  group_by(Country,Session) %>%
-  mutate(outliers = ClockDuration > Duration_max | ClockDuration < Duration_min | EstimatedDuration > Duration_max * Ratio_rejection_ClockDuration_to_EstimatedDuration | EstimatedDuration < Duration_min / Ratio_rejection_ClockDuration_to_EstimatedDuration) %>%
-  filter(!outliers) %>%
-  mutate(outliers = find.outliers(rEstimationError,meth = 'trim', probs = probs)) %>%
-  filter(!outliers) %>%
-  ungroup() %>% select(-outliers)
-nrowsafter_outliers <- nrow(RetroDuration_clean)
-
-cat('Global proportion of outliers', prop_outliers_global <- 1 - nrowsafter_outliers / nrowsbefore_outliers)
-
-save(RetroDuration_clean, file = file.path(dirBlursday,'RetroDuration_clean.RData'))
+# RetroDuration_clean <- RetroDuration %>%
+#   filter(!is.na(rEstimatedDuration), rEstimatedDuration != 0)
+# nrowsbefore_outliers <- nrow(RetroDuration_clean)
+# RetroDuration_clean <- RetroDuration_clean %>%
+#   group_by(Country,Session) %>%
+#   mutate(outliers = ClockDuration > Duration_max | ClockDuration < Duration_min | EstimatedDuration > Duration_max * Ratio_rejection_ClockDuration_to_EstimatedDuration | EstimatedDuration < Duration_min / Ratio_rejection_ClockDuration_to_EstimatedDuration) %>%
+#   filter(!outliers) %>%
+#   mutate(outliers = find.outliers(rEstimationError,meth = 'trim', probs = probs)) %>%
+#   filter(!outliers) %>%
+#   ungroup() %>% select(-outliers)
+# nrowsafter_outliers <- nrow(RetroDuration_clean)
+# 
+# cat('Global proportion of outliers', prop_outliers_global <- 1 - nrowsafter_outliers / nrowsbefore_outliers)
+# 
+# save(RetroDuration_clean, file = file.path(dirBlursday,'RetroDuration_clean.RData'))
+load(file.path(dirBlursday,'RetroDuration_clean.RData'))
 
 RetroDuration_clean %>%
   group_by(Country,Session) %>%
@@ -450,13 +451,29 @@ ggplot(tostat,aes(x=rEstimatedDuration,col = Session)) +
 #### Model log(EstimatedDuration) = f(log(ClockDuration))
 
 ```{r}
-m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session, data = tostat) #  %>% mutate(Session = factor(Session,levels = c('SC', 'S1')))
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session, data = tostat)
 plot(m)
+summary(m)
+anova(m)
+effectsize::eta_squared(m)
+confint(m)
 ```
+
+Removing outliers shown in previous plot from the data
+```{r}
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session, data = ungroup(tostat) %>% slice(-129, -1607, -1061, -97, -308, -1539))
+
+plot(m)
+anova(m)
+
+```
+
 
 Outliers are more transparent.
 
 ```{r}
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session, data = tostat)
+
 emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 20))) %>%
   summary(type = 'response') %>%
   ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Session, group = Session)) +
@@ -480,21 +497,23 @@ emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockD
 ```
 Not showing outliers
 ```{r}
-emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 20))) %>%
-  summary(type = 'response') %>%
-  ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Session, group = Session)) +
-  geom_abline(slope = 1) +
-  geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .5,data = tostat) +
-  geom_line(size = 1) +
-  geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
-  scale_x_log10() +
-  scale_y_log10() +
-  ylab('Duration Estimate (min)') +
-  xlab('Clock Duration (min)') +
-  scale_fill_manual(values = Palette_SessionS1SC) +
-  scale_color_manual(values = Palette_SessionS1SC)
+m <- lm(log10(EstimatedDuration) ~ log10(ClockDuration) * Session, data = tostat)
 
-imagefile = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/Fig4a.png'
+(fig1a <- emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(min(tostat$ClockDuration,na.rm = F), max(tostat$ClockDuration,na.rm = F), length.out = 20))) %>%
+   summary(type = 'response') %>%
+   ggplot(aes(x = ClockDuration, y = response, ymin = lower.CL, ymax = upper.CL, col = Session, group = Session)) +
+   geom_abline(slope = 1) +
+   geom_point(aes(y= EstimatedDuration, ymin = NA, ymax = NA),alpha = .5, size = 1, data = tostat) +
+   geom_line(size = 1) +
+   geom_ribbon(col = NA, fill = 'grey',alpha = .2) +
+   scale_x_log10() +
+   scale_y_log10() +
+   ylab('Duration Estimate (min)') +
+   xlab('Clock Duration (min)') +
+   scale_fill_manual(values = Palette_SessionS1SC) +
+   scale_color_manual(values = Palette_SessionS1SC))
+
+imagefile = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/fig1a.png'
 ggsave(
   basename(imagefile),
   plot = last_plot(),
@@ -506,21 +525,26 @@ ggsave(
   bg = "white"
 )
 
-googledrive::drive_auth()
-googledrive::drive_upload(imagefile,
-                          path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
-                          overwrite = T)
+# googledrive::drive_auth()
+# googledrive::drive_upload(imagefile,
+#                           path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
+#                           overwrite = T)
 ```
 
 ```{r}
 summary(m)
 
-summary(emtrends(m,~Session, 'log10(ClockDuration)'))
+summary(emtrends(m,~Session, 'log10(ClockDuration)', infer = T, offset = -1, adjust = 'tukey'))
 
 anova(m)
 
+qqnorm(residuals(m))
+
+effectsize::eta_squared(m)
+
 summary(emmeans(m,~ClockDuration+Session,at = list(ClockDuration = c(10,30,60))),type = 'response') %>%
   mutate(ClockDuration = lubridate::as.duration(ClockDuration * 60),
+         SE = SE * 60,
          response = lubridate::as.duration(response * 60))
 
 
@@ -529,6 +553,13 @@ summary(emmeans(m,~ClockDuration+Session,at = list(ClockDuration = seq(15,20, by
          response = lubridate::as.duration(response * 60),
          identity = response - ClockDuration) %>%
   group_by(Session) %>%
+  filter(abs(identity) == min(abs(identity))) %>%
+  select(-response)
+
+summary(emmeans(m,~ClockDuration, at = list(ClockDuration = seq(15,20, by = .1))),type = 'response') %>%
+  mutate(ClockDuration = lubridate::as.duration(ClockDuration * 60),
+         response = lubridate::as.duration(response * 60),
+         identity = response - ClockDuration) %>%
   filter(abs(identity) == min(abs(identity))) %>%
   select(-response)
 
@@ -967,7 +998,7 @@ m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjec
 summary(m)
 anova(m)
 effectsize::eta_squared(m)
-
+confint(m)
 plot(m)
 
 
@@ -977,28 +1008,29 @@ plot(m)
 ##### Stringency Index
 
 ```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
 
 em <- summary(emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(20,100,by = 20))), type = 'response')
 
 ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) +
   geom_col(aes(y=response), col = 'black', data = em) +
   geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) +
-  scale_y_log10(limits = c(.3,3)) +
+  scale_y_log10(limits = c(.3,3)) + 
   scale_fill_manual(values = Palette_Session) +
   scale_color_manual(values = Palette_Session)
 
-ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) +
-  geom_jitter(alpha = .3) +
+(fig1b <- ggplot(aes(x = Stringency_Index,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_jitter(alpha = .3, size = 1) +
   geom_line(aes(y=response), col = 'black', data = em) +
   geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
   scale_y_log10( limits = c(.3,3)) +
   scale_fill_manual(values = Palette_Session) +
   scale_color_manual(values = Palette_Session) +
   ylab('Relative Duration Estimate') +
-  xlab('Stringency Index')
+  xlab('Stringency Index'))
 em
 
-imagefile = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/Fig4b.png'
+imagefile = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/fig1b.png'
 ggsave(
   basename(imagefile),
   plot = last_plot(),
@@ -1010,36 +1042,36 @@ ggsave(
   bg = "white"
 )
 
-googledrive::drive_auth()
-googledrive::drive_upload(imagefile,
-                          path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
-                          overwrite = T)
+# googledrive::drive_auth()
+# googledrive::drive_upload(imagefile,
+#                           path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
+#                           overwrite = T)
 ```
 ##### Mobility Transit
 
 ```{r}
 
-em <- summary(emmeans(m, ~ Mobility_Transit, at = list(Mobility_Transit = seq(-100,10,by = 10))), type = 'response')
+em <- summary(emmeans(m, ~ Mobility_Transit, at = list(Mobility_Transit = seq(-100,25,by = 10))), type = 'response')
 
 ggplot(aes(x = Mobility_Transit,y = rEstimatedDuration, col = Session), data = tostat) +
   geom_col(aes(y=response), col = 'black', data = em) +
-  geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black', data = em) +
+  geom_pointrange(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = 'black',  data = em) +
   scale_y_log10(limits = c(.3,3)) +
   scale_fill_manual(values = Palette_Session) +
   scale_color_manual(values = Palette_Session)
 
-ggplot(aes(x = Mobility_Transit,y = rEstimatedDuration, col = Session), data = tostat) +
-  geom_jitter(alpha = .3) +
+(fig1c <- ggplot(aes(x = Mobility_Transit,y = rEstimatedDuration, col = Session), data = tostat) +
+  geom_jitter(alpha = .3, size = 1) +
   geom_line(aes(y=response), col = 'black', data = em) +
   geom_ribbon(aes(y=response, ymin = lower.CL, ymax = upper.CL), col = NA, alpha = .2, data = em) +
   scale_y_log10( limits = c(.3,3)) +
   scale_fill_manual(values = Palette_Session) +
   scale_color_manual(values = Palette_Session) +
   ylab('Relative Duration Estimate') +
-  xlab('Mobility Index')
+  xlab('Mobility Index'))
 em
 
-imagefile = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/Fig4c.png'
+imagefile = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/fig1c.png'
 ggsave(
   basename(imagefile),
   plot = last_plot(),
@@ -1051,10 +1083,10 @@ ggsave(
   bg = "white"
 )
 
-googledrive::drive_auth()
-googledrive::drive_upload(imagefile,
-                          path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
-                          overwrite = T)
+# googledrive::drive_auth()
+# googledrive::drive_upload(imagefile,
+#                           path = googledrive::as_dribble('https://drive.google.com/drive/folders/1OA-YRMBgo93zkndKHvUH0zR8LQAzBto8'),
+#                           overwrite = T)
 ```
 Other mobility measures have little effect on rEstimatedDuration
 ```{r}
@@ -1068,8 +1100,17 @@ plot(m)
 
 ```
 
+```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Mobility_Retail + Mobility_Parks + Mobility_WorkPlaces + Mobility_Residential + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = ungroup(tostat) %>% slice(-2236, -1706, -1618, -2233, -129, -694, -2230, -616, -1341))
+
+anova(m)
+effectsize::eta_squared(m)
+
+plot(m)
+```
 
 ```{r}
+m <- lm(log10(rEstimatedDuration) ~ Stringency_Index + Mobility_Transit + Mobility_Retail + Mobility_Parks + Mobility_WorkPlaces + Mobility_Residential + Subjective_Confinement + Age + poly(Hour_Of_Day,3), data = tostat)
 emm <- emmeans(m, ~ Stringency_Index, at = list(Stringency_Index = seq(20,100,by = 20)))
 em <- predict(emm, type = 'response', interval = 'prediction')
 
@@ -1161,5 +1202,28 @@ ggplot(aes(x = Hour_Of_Day,y = rEstimatedDuration, col = Session), data = tostat
   xlim(c(7,23)) +
   scale_fill_manual(values = Palette_Session) +
   scale_color_manual(values = Palette_Session)
+```
+# Figure1 final
+```{r}
+library(patchwork)
+layout <- "
+A
+B
+B"
+
+fig1a / (fig1b / fig1c + plot_layout(guides = 'collect')) + plot_layout(design = layout) + plot_annotation(tag_levels = 'a') & theme(plot.tag = element_text(face = 'bold'))
+
+imagefile = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/Fig1.pdf'
+ggsave(
+  basename(imagefile),
+  plot = last_plot(),
+  device = 'pdf',
+  width = 89,
+  height = 150,
+  path = dirname(imagefile),
+  units = 'mm',
+  bg = "white"
+)
+
 ```
 

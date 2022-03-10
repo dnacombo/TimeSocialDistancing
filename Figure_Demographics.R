@@ -25,7 +25,7 @@
 # Demographics plots
 source('helpers.R')
 
-dirFigures <- '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures'
+dirFigures <- '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures'
 load(file.path(dirBlursday,'Demographics.RData'))
 Demographics <- Demographics %>%
   filter(Country != 'US')

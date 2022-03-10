@@ -3,11 +3,11 @@ title: "Retrospective duration: Passage of Time"
 params:
   ExperimentID: null
 output:
-  html_notebook:
-    code_folding: hide
-    toc: yes
   html_document:
     df_print: paged
+    code_folding: hide
+    toc: yes
+  html_notebook:
     code_folding: hide
     toc: yes
 editor_options: 
@@ -63,29 +63,29 @@ load(file.path(dirBlursday,'Daily_Login_Times.RData'))
 
 # Extracting data:
 
-RetroDuration_PoT <- gimmeRdata(dirBlursday, UniqueName = 'RetroDuration') %>%
-  filter(!Country %in% c('UK','CO', 'US')) %>%
-  QTranslate() %>%
-  filter(Question_Key %in% c('Passage_of_Time')) %>%
-  mutate(Date = lubridate::date(Local_Date)) %>%
-  pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
-  # take only the first response if there are several ones
-  group_by(PID,Session,Run,Country) %>%
-  slice(1) %>%
-  add_Demographics() %>%
-  # Using 3 AM to change day
-  mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3)),
-         Passage_of_Time = as.numeric(Passage_of_Time)) %>%
-  left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
-  mutate(Date = lubridate::as_date(Local_Date)) %>%
-  mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
-  select(Country, PID, Session, Run, Local_Date, ClockDuration, Passage_of_Time,
-         Handedness, Sex, Age, Date) %>%
-  mutate(ClockDuration = lubridate::as.duration(ClockDuration)) %>%
-  ungroup() %>%
-  drop_na(Passage_of_Time, Age)
-
-save(RetroDuration_PoT, file = file.path(dirBlursday,'RetroDuration_PoT.RData'))
+# RetroDuration_PoT <- gimmeRdata(dirBlursday, UniqueName = 'RetroDuration') %>%
+#   filter(!Country %in% c('UK','CO', 'US')) %>%
+#   QTranslate() %>%
+#   filter(Question_Key %in% c('Passage_of_Time')) %>%
+#   mutate(Date = lubridate::date(Local_Date)) %>%
+#   pivot_wider(id_cols = c('PID', 'Session','Run', 'Country', 'Local_Date'), names_from = Question_Key, values_from = Response) %>%
+#   # take only the first response if there are several ones
+#   group_by(PID,Session,Run,Country) %>%
+#   slice(1) %>%
+#   add_Demographics() %>%
+#   # Using 3 AM to change day
+#   mutate(Date = lubridate::as_date(Local_Date - lubridate::duration(hours = 3)),
+#          Passage_of_Time = as.numeric(Passage_of_Time)) %>%
+#   left_join(select(daily_login_times, PID, Session, Local_Date, Date), by = c('PID','Date'), suffix = c('','_First_Login')) %>%
+#   mutate(Date = lubridate::as_date(Local_Date)) %>%
+#   mutate(ClockDuration = Local_Date - Local_Date_First_Login) %>%
+#   select(Country, PID, Session, Run, Local_Date, ClockDuration, Passage_of_Time,
+#          Handedness, Sex, Age, Date) %>%
+#   mutate(ClockDuration = lubridate::as.duration(ClockDuration)) %>%
+#   ungroup() %>%
+#   drop_na(Passage_of_Time, Age)
+# 
+# save(RetroDuration_PoT, file = file.path(dirBlursday,'RetroDuration_PoT.RData'))
 
 load(file = file.path(dirBlursday,'RetroDuration_PoT.RData'))
 ```
@@ -197,7 +197,7 @@ RetroDuration_PoT_clean %>%
   group_by(Country,Session) %>%
   mutate(across(c(ClockDuration), as.numeric)) %>%
   pivot_longer(cols = c(ClockDuration, Passage_of_Time)) %>%
-ggplot(aes(x = value, fill = Country)) + 
+  ggplot(aes(x = value, fill = Country)) + 
   geom_histogram(bins = 50) +
   facet_wrap(~name ,scales = 'free')
 ```
@@ -205,29 +205,33 @@ ggplot(aes(x = value, fill = Country)) +
 # Passage of Time
 ## Data distribution
 
+# panel a
 ```{r}
 load(file = file.path(dirBlursday,'RetroDuration_PoT_clean.RData'))
 
-RetroDuration_PoT_clean %>%
-  group_by(Country,Session) %>%
-ggplot(aes(x = Passage_of_Time, fill = Session)) + 
-  geom_histogram(bins = 50)  +
-  scale_fill_manual(values = Palette_Session) +
-  scale_color_manual(values = Palette_Session) +
-  xlab('Passage of Time') +
-  ylab('Count')
+(fig2a <- RetroDuration_PoT_clean %>%
+    group_by(Country,Session) %>%
+    ggplot(aes(x = Passage_of_Time, fill = Session)) + 
+    geom_histogram(bins = 50)  +
+    scale_fill_manual(values = Palette_Session) +
+    scale_color_manual(values = Palette_Session) +
+    xlab('Passage of Time') +  
+    annotate("text", x = -5, y = -60, hjust = 0, vjust = 1, label = 'very\nslow', size = 2) +
+    annotate("text", x = 105, y = -60, hjust = 1, vjust = 1, label = 'very\nfast', size = 2) +
+    coord_cartesian(xlim = c(0,100), ylim = c(0, 300), clip = "off") + 
+    ylab('Count'))
 
-imagefile = '/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/SuppFig_distr_PoT.png'
-ggsave(
-  basename(imagefile),
-  plot = last_plot(),
-  device = 'png',
-  width = 200,
-  height = 100,
-  path = dirname(imagefile),
-  units = 'mm',
-  bg = "white"
-)
+# imagefile = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/SuppFig_distr_PoT.png'
+# ggsave(
+#   basename(imagefile),
+#   plot = last_plot(),
+#   device = 'png',
+#   width = 200,
+#   height = 100,
+#   path = dirname(imagefile),
+#   units = 'mm',
+#   bg = "white"
+# )
 ```
 
 
@@ -346,8 +350,10 @@ ggplot(tostat,aes(x=rPoT,col = Session)) +
 ```{r}
 mylm <- lm(Passage_of_Time ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  poly(Hour_Of_Day,3), data = tostat)
 summary(mylm)
-
+plot(mylm)
 car::Anova(mylm, type = 2)
+effectsize::eta_squared(car::Anova(mylm, type = 2))
+confint(mylm)
 
 (em <- emmeans(mylm, ~ Subjective_Confinement, at = list(Subjective_Confinement = c(5,20))))
 pairs(em)
@@ -355,8 +361,16 @@ pairs(em)
 
 
 ```
+```{r}
+library(ordinalCont)
 
+ord_PoT <- ocm(Passage_of_Time ~ Stringency_Index + Mobility_Transit + Subjective_Confinement + Age  +  poly(Hour_Of_Day,3), data = tostat)
+summary(ord_PoT)
+plot(ord_PoT)
 
+```
+
+# Panel b
 ```{r}
 
 em <- summary(emmeans(mylm,~ Subjective_Confinement, at = list(Subjective_Confinement = 5:20))) %>%
@@ -364,18 +378,25 @@ em <- summary(emmeans(mylm,~ Subjective_Confinement, at = list(Subjective_Confin
          LCL = lower.CL,
          UCL = upper.CL)
 
-(p_SC <- ggplot(tostat %>%
+(fig2b <- p_SC <- ggplot(tostat %>%
          group_by(Subjective_Confinement) %>%
          mutate(meanPassage_of_Time = mean(Passage_of_Time),
                 n = n()),
        aes(x = Subjective_Confinement, y = Passage_of_Time)) +
-  geom_jitter(data = tostat, width = .1, col = 'grey') +
+  geom_jitter(data = tostat, width = .1, col = 'grey', size = .5) +
   geom_line(data = em) +
   # geom_point(col='green',data = em2) +
   geom_ribbon(mapping = aes(ymin = LCL, ymax = UCL),col = NA, alpha = .2,data = em) +
-  geom_point(aes(y = meanPassage_of_Time, size = n/5), col = 'black', show.legend = F) +
+  geom_point(aes(y = meanPassage_of_Time, size = n), col = 'black', show.legend = F) +
     xlab('Subjective Confinement') +
-    ylab('Passage of Time')
+    ylab('Passage of Time') +
+    scale_size_area(max_size = 2.5) +
+    annotate("text", x = 4, y = -20, hjust = 0, vjust = 1, label = 'feeling\nlonely', size = 2) +
+    annotate("text", x = 21, y = -20, hjust = 1, vjust = 1, label = 'not feeling\nlonely', size = 2) +
+    annotate("text", y = 5, x = 3.5, hjust = 1, vjust = -1, angle = 90, label = 'very\nslow', size = 2) +
+    annotate("text", y = 100, x = 3.5, hjust = 1, vjust = -1, angle = 90, label = 'very\nfast', size = 2) +
+    coord_cartesian(xlim = c(5,20),ylim = c(0, 100), clip = "off") 
+
 # +
 #   geom_label(aes(y=100,label = n))
 )
@@ -480,6 +501,7 @@ em <- summary(emmeans(mylm,~ Hour_Of_Day, at = list(Hour_Of_Day = seq(3,24)))) %
 #   geom_label(aes(y=100,label = n))
 )
 ```
+
 ```{r}
 library(patchwork)
 
@@ -503,4 +525,23 @@ p_SC
 <!-- anova(m, test = 'F') -->
 
 <!-- ``` -->
+# figure 2 final
+```{r}
+
+library(patchwork)
+fig2a / fig2b + plot_annotation(tag_levels = 'a') & theme(plot.tag = element_text(face = 'bold'))
+
+imagefile = '/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/PaperFigures/Fig2.pdf'
+ggsave(
+  basename(imagefile),
+  plot = last_plot(),
+  device = 'pdf',
+  width = 89,
+  height = 100,
+  path = dirname(imagefile),
+  units = 'mm',
+  bg = "white"
+)
+
+```
 

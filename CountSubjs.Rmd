@@ -47,7 +47,7 @@ source('helpers.R')
 
 # Loading data from DB
 ```{r}
-alldata <- gimmeRdata(DataDir = dirBlursday, fast = T, progress = T, as.list = T)
+alldata <- gimmeRdata(DataDir = dirBlursday, fast = T, progress = F, as.list = T)
 ```
 
 ## finished tasks
@@ -129,7 +129,7 @@ count_PIDs %>%
 ## Checking inconsistencies
 
 ```{r}
-fs <- list.files('/home/maximilien.chaumon_local/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', pattern = '^S._.*csv', recursive = T, full.names = T)
+fs <- list.files('/home/maximilien.chaumon/ownCloud/Lab/00-Projects/TimeSocialDistancing/DATA', pattern = '^S._.*csv', recursive = T, full.names = T)
 
 count_csv <- tibble()
 pb <- txtProgressBar(min = 0, max = length(fs), initial = 0, char = "=",
@@ -225,6 +225,15 @@ all_endedtasks %>%
   ungroup() %>%
   summarize(n = n())
 ```
+```{r}
+all_endedtasks %>%
+  filter(Session == 'S1') %>%
+  group_by(PID) %>%
+  slice(1) %>%
+  group_by() %>%
+  summarize(n = n())
+```
+
 # Participants who finished Session 1
 ```{r}
 all_endedtasks %>%
@@ -273,6 +282,35 @@ all_endedtasks %>%
   slice(1) %>%
   group_by() %>%
   summarize(n = n())
+```
+
+# Minimum number of tasks
+```{r}
+
+counts <- all_endedtasks %>%
+  group_by(PID, Session, Unique_Name, Run) %>%
+  slice(1) %>%
+  group_by(PID) %>%
+  summarize(n = n()) 
+
+counts %>%
+  group_by(n) %>%
+  summarize(N = n())
+
+counts %>% ggplot(aes(x = n)) +
+  geom_histogram(binwidth = 1)
+```
+```{r}
+all_endedtasks %>%
+  filter(Session == 'S1', Run %in% c('1', '')) %>%
+  group_by(Unique_Name) %>%
+  summarize(N = n()) %>%
+  filter(!Unique_Name %in% c('CFC-14','Continue', 'END')) %>%
+  ggplot(aes(x = Unique_Name, y = N)) +
+  geom_col() +
+  coord_flip() + 
+  scale_x_discrete(limits=rev) +
+  xlab('Questionnaire / Task')
 ```
 
 <!-- ```{r} -->
